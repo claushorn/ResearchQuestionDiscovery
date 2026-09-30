@@ -11,7 +11,8 @@ _WORDS = {"dollar": "USD", "dollars": "USD", "pound": "GBP", "pounds": "GBP", "e
 _SCALE = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "billion": 1e9}
 _TOKEN = re.compile(
     r"(?P<pre>[$£€]\s?|\b(?:USD|GBP|EUR)\s?)?"
-    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?)"
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
+    r"(?![0-9]*(?:st|nd|rd|th)\b)"  # "1st place" is a rank, not a figure
     r"(?P<pct>\s?(?:%|percent\b))?"
     r"(?:\s?(?P<suf>k|mn|m|million|bn|b|billion)\b)?"
     r"(?:\s?(?P<post>USD|GBP|EUR|dollars?|pounds?|euros?)\b)?", re.IGNORECASE)
@@ -47,7 +48,9 @@ def _tokens(text: str) -> list[_Tok]:
         if post:
             currency = currency or _WORDS.get(post.lower(), post.upper())
         grouped = "," in num or num.count(".") >= 2
-        value = float(num.replace(",", "") if "," in num else (num.replace(".", "") if num.count(".") >= 2 else num))
+        value = float(num.replace(",", "") if "," in num else (num.replace(".", "") if num.count(".") >= 2 else num))  # 3.7e-10 ok
+        if suf and ("e" in num or "E" in num):
+            suf = None  # "3.7e-10 M" is molar, not million: no magnitude suffix on scientific notation
         out.append(_Tok(value, _SCALE[suf.lower()] if suf else 1.0, currency, bool(currency or suf or grouped),
                         bool(m.group("pct")), m.start(), m.end()))
     return out
@@ -92,3 +95,41 @@ def to_usd(m: Money, rates: dict[str, float]) -> tuple[float, float] | None:
     if m.currency is None or m.currency not in rates:
         return None
     return m.low * rates[m.currency], m.high * rates[m.currency]
+
+
+def _close(a: float, b: float) -> bool:
+    """Same number as stated (float precision only): 0.87 is not 0.871, $1.4M is not $1.5M."""
+    return abs(a - b) <= 1e-9 * max(abs(b), 1.0)
+
+
+def figure_in_quote(value: float, quote: str, kind: str | None) -> bool:
+    """Is `value` stated in `quote`? kind: an ISO currency code for money (same currency required), '%' for
+    shares (a percentage, or a plain fraction in [0, 1]), None for plain numbers (counts, scores)."""
+    for fig, cur in figures(quote):
+        if kind == "%" and ((cur == "%" and _close(value, fig)) or (cur is None and 0 <= fig <= 1 and _close(value, fig))):
+            return True
+        if kind not in ("%", None) and cur == kind and _close(value, fig):
+            return True
+        if kind is None and cur is None and _close(value, fig):
+            return True
+    return False
+
+
+def stated(value: float, quote: str) -> bool:
+    """A score or plain number as stated: 0.871 or 87.1 for "87.1%" (the hundredfold reading only with an explicit
+    percent sign: 50 is not stated by "0.5")."""
+    return any((cur is None or cur == "%") and _close(value, fig) or cur == "%" and _close(value / 100, fig)
+               for fig, cur in figures(quote))
+
+
+_NUMBER = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(\s?(?:%|percent\b))?")
+
+
+def numbers_in_text(text: str) -> list[tuple[float, bool]]:
+    """Decimals and percentages stated in free text (scores, gains); integers such as ranks, years or counts are
+    not included. Returns (value, is_percent)."""
+    out = []
+    for m in _NUMBER.finditer(text or ""):
+        if m.group(2) or "." in m.group(1):
+            out.append((float(m.group(1)), bool(m.group(2))))
+    return out

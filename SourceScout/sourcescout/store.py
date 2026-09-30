@@ -123,6 +123,10 @@ class Store:
             (-1 if limit is None else limit,))
         return [_row(r) for r in rows]
 
+    def finished_items(self) -> list[StoredItem]:
+        """Items the source marks finished (e.g. ended challenges): kept for other uses, never extracted."""
+        return [_row(r) for r in self._db.execute("SELECT * FROM items WHERE finished=1 ORDER BY first_seen, item_id")]
+
     def get(self, item_id: str) -> StoredItem | None:
         r = self._db.execute("SELECT * FROM items WHERE item_id=?", (item_id,)).fetchone()
         return _row(r) if r else None

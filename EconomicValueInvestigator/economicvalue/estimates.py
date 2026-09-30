@@ -8,7 +8,7 @@ never by the model."""
 import math
 import re
 
-from economicvalue.money import figures, parse_amounts
+from rqd.numbers import figure_in_quote as _in_quote, parse_amounts
 from economicvalue.schema import TEXT_FIELDS, EstimateRow, EVOutput
 
 MODELS = {  # potential value (USD/year) = product of the factors; computed here, never by the model
@@ -24,22 +24,6 @@ _TIME = _YEAR + ("month", "week", "day", "quarter", "hour")
 _SCALE_WORD = re.compile(r"\b(thousands?|millions?|billions?|k|m|mn|bn)\b", re.IGNORECASE)
 _RANK = {"supported": 2, "assumption_only": 1}
 UNKNOWN = "unknown"
-
-
-def _close(a: float, b: float) -> bool:
-    return abs(a - b) <= 0.005 * max(abs(b), 1e-9)
-
-
-def _in_quote(value: float, quote: str, currency: str | None) -> bool:
-    """currency: an ISO code for money, '%' for shares (a percentage or a plain fraction), None for counts."""
-    for fig, cur in figures(quote):
-        if currency == "%" and ((cur == "%" and _close(value, fig)) or (cur is None and 0 <= fig <= 1 and _close(value, fig))):
-            return True
-        if currency not in ("%", None) and cur == currency and _close(value, fig):
-            return True
-        if currency is None and cur is None and _close(value, fig):
-            return True
-    return False
 
 
 def _money_unit(unit: str, rates: dict[str, float]) -> tuple[str, float, str, str | None] | None:

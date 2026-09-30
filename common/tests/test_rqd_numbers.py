@@ -1,6 +1,6 @@
 import pytest
 
-from economicvalue.money import parse_amounts, to_usd
+from rqd.numbers import figure_in_quote, numbers_in_text, parse_amounts, to_usd
 
 RATES = {"USD": 1.0, "GBP": 1.25, "EUR": 1.1}
 
@@ -50,3 +50,46 @@ def test_parse_amounts_review_cases(text, expected):
 def test_unknown_currency_code_is_not_converted():
     [m] = parse_amounts("CHF 5,000")
     assert m.currency is None and to_usd(m, RATES) is None
+
+
+def test_numbers_in_text_finds_decimals_and_percentages_not_ranks_or_years():
+    text = "The 1st place team (2023) reached 0.871 accuracy, 12.5% above the 0.62 baseline in 3 rounds."
+    assert numbers_in_text(text) == [(0.871, False), (12.5, True), (0.62, False)]
+
+
+@pytest.mark.parametrize("value, quote, kind, ok", [
+    (0.871, "Team X scored 0.871 on the private leaderboard", None, True),
+    (0.87, "Team X scored 0.871 on the private leaderboard", None, False),
+    (40_000, "incidents cost us $40,000 each", "USD", True),
+    (40_000, "incidents cost us $40,000 each", "GBP", False),
+    (0.13, "13% of surveyed organizations", "%", True),
+])
+def test_figure_in_quote(value, quote, kind, ok):
+    assert figure_in_quote(value, quote, kind) is ok
+
+
+def test_scientific_notation_is_read():
+    # measured: Proteinbase reports binding affinities as "KD: 3.7e-10 M"
+    assert figure_in_quote(3.7e-10, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)
+    assert figure_in_quote(1.4e-9, "🥇 Nick Boyd (KD: 1.4e-9 M)", None)
+    assert not figure_in_quote(3.7, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)
+
+
+def test_ordinals_are_not_figures():
+    # review: "1st place" backed a winner score of 1.0
+    from rqd.numbers import figures
+    assert figures("The 1st place team and the 21st and 3rd ones") == []
+
+
+def test_stated_needs_an_explicit_percent_for_the_hundredfold_reading():
+    # review: 50 was "stated" by a bare 0.5
+    from rqd.numbers import stated
+    assert stated(0.871, "reached 87.1% accuracy") and stated(87.1, "reached 87.1% accuracy")
+    assert stated(0.5, "Team X scored 0.5") and stated(50, "Team X scored 50")
+    assert not stated(50, "Team X scored 0.5") and not stated(90, "Team X scored 0.9")
+
+
+def test_scientific_notation_money():
+    from rqd.numbers import parse_amounts
+    assert [(m.low, m.currency) for m in parse_amounts("a $2e6 contract")] == [(2e6, "USD")]
+    assert parse_amounts("KD of 3.7e-10 M") == []
