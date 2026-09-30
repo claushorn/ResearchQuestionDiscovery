@@ -127,12 +127,13 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
             entry["score"] = None
         solutions.append(entry)
     quotes = [e.quote for e, v in zip(out.evidence, verification) if v in VERIFIED]
+    backed = [record["headroom"][k]["value"] for k in ("winner", "ceiling", "baseline") if record["headroom"][k]]
     texts = [("summary", out.summary)] + [(f"solutions[{i}].approach", s.approach) for i, s in enumerate(out.solutions, 1)]
     for i, idea in enumerate(out.ideas, 1):
         texts += [(f"ideas[{i}].{f}", getattr(idea, f)) for f in ("idea", "builds_on", "why_it_could_win", "risks")]
     for name, text in texts:
         for value, pct in numbers_in_text(text):
-            if not _supported_number(value, pct, quotes):
+            if not _supported_number(value, pct, quotes) and not any(abs(value - b) <= 1e-9 * max(abs(b), 1.0) for b in backed):
                 warnings["unsupported_numbers"].append(f"{name}: {value:g}{'%' if pct else ''}")
     record["investigation"] = {
         "solutions": solutions, "ideas": [i.model_dump() for i in out.ideas], "summary": out.summary,

@@ -119,3 +119,11 @@ def test_cli_headroom_list_investigate_show(env, monkeypatch):
     assert res.exit_code == 1 and "ERROR:" in res.output and "--force" in res.output
     assert r.invoke(app, ["--root", str(env), "investigate", A]).exit_code == 0
     assert "ideas" in r.invoke(app, ["--root", str(env), "show", A]).output
+
+
+def test_numbers_backed_by_the_headroom_check_are_not_flagged(env):
+    out = investigate_output(summary="the winner scored 0.9 against a ceiling of 1.0 and a baseline of 0.5",
+                             ideas=[])
+    ctx, _ = context(env, [session(HEADROOM), session(out, n_search=4)])
+    investigate(ctx, [A])
+    assert ctx.challenges.load(A)["investigation"]["warnings"]["unsupported_numbers"] == []
