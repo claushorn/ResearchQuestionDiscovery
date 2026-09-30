@@ -1,0 +1,16 @@
+headroom_agent:                    # short gate session per finished challenge (runs on all of them)
+  model: claude-opus-5-5
+  effort: low
+  max_budget_usd: 0.5
+  min_searches: 1
+investigate_agent:                 # solutions + improvement ideas (only for challenges you pick)
+  model: claude-opus-5-5
+  effort: medium
+  max_budget_usd: 2.0
+  min_searches: 4
+headroom_threshold: 0.10           # normalized headroom below this = "solved" (not worth beating)
+http:                              # fetching cited evidence for quote verification
+  user_agent: "RQD-ChallengeInvestigator/0.1 (research evidence verification)"
+  timeout_s: 30
+  min_interval_s_per_host: 2.0
+sourcescout_root: ../SourceScout   # finished challenges are read from its store (data/scout.db)

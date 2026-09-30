@@ -1,0 +1,29 @@
+# One record per finished challenge: ChallengeInvestigator/challenges/<item_id>.yaml
+item_id: 67d2eba5f07d24c5            # SourceScout item id
+revision: 1
+challenge: {title: ..., url: ..., source_id: aicrowd-completed}
+headroom:
+  metric: accuracy
+  direction: higher_is_better | lower_is_better
+  winner: {value: 0.9, team: Team X, basis: [{type: source, url, quote, verification: verified}]}   # or null
+  ceiling: {value: 1.0, basis: [{type: definition, definition: "accuracy is at most 1.0"}]}           # or null
+  baseline: {value: 0.5, basis: [...]}                                                                # or null
+  normalized_headroom: 0.2          # computed by code; null when unclear
+  verdict: solved | headroom | unclear
+  threshold: 0.1
+  reasoning: ...
+  confidence: 0.8
+  warnings: [...]                   # rejected values and why
+  evidence: [{title, url, kind, quote, verification}]
+  search: {searches, fetches, queries, sufficient}
+  run: {model, effort, answered_by, cost_usd_equivalent, ..., transcript}
+investigation:                      # null until `challenges investigate`
+  solutions: [{place, team, title, url, kind, approach, score, evidence}]
+  ideas: [{idea, builds_on, why_it_could_win, risks, effort, expected_gain_assumption}]
+  summary: ...
+  evidence: [...]
+  warnings: {dropped_solutions: [...], dropped_scores: [...], unsupported_numbers: [...]}
+  search: {...}
+  run: {...}
+  forced: false
+history: []
