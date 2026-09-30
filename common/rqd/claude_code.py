@@ -36,6 +36,7 @@ class AgentResult:
     cost_usd: float
     num_turns: int
     duration_s: float
+    models_used: list[str]  # more than one: Claude Code fell back (e.g. after a biology-classifier stop)
     transcript: str = field(repr=False)
 
 
@@ -91,6 +92,7 @@ class _Messages:
         return SimpleNamespace(
             stop_reason="end_turn",
             num_turns=out.get("num_turns") or 0,  # > 2: the structured output was rejected and rewritten
+            models_used=list(out.get("modelUsage") or {}),  # which models actually answered (fallbacks included)
             content=[SimpleNamespace(type="text", text=json.dumps(out["structured_output"]))],
             usage=SimpleNamespace(input_tokens=u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0),
                                   output_tokens=u.get("output_tokens", 0),
@@ -133,7 +135,8 @@ class ClaudeCodeClient:
         calls = [ToolCall(b.get("name", ""), b.get("input") or {}) for e in events if e.get("type") == "assistant"
                  for b in (e.get("message") or {}).get("content") or [] if b.get("type") == "tool_use"]
         return AgentResult(out["structured_output"], calls, out.get("usage") or {}, out.get("total_cost_usd") or 0.0,
-                           out.get("num_turns") or 0, (out.get("duration_ms") or 0) / 1000, transcript)
+                           out.get("num_turns") or 0, (out.get("duration_ms") or 0) / 1000,
+                           list(out.get("modelUsage") or {}), transcript)
 
 
 def make_client(backend: str):

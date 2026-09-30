@@ -155,3 +155,14 @@ def test_malformed_candidate_file_is_reported_and_run_continues(ctx, tmp_path):
     pe = ctx()
     run_extraction(pe, FakeClient([message(pe_output())]))
     assert pe.report.new == 1 and any("cand-broken.yaml" in f for f in pe.report.failures)
+
+
+def test_fallback_model_is_recorded_and_counted(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    m = message(pe_output())
+    m.models_used = ["claude-opus-5-5", "claude-opus-5"]  # Claude Code fell back after a classifier stop
+    pe = ctx()
+    run_extraction(pe, FakeClient([m]))
+    assert pe.problems.load(problem_id_for(c["candidate_id"]))["extracted_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]
+    assert pe.report.fallbacks == 1 and "model fallbacks: 1" in pe.report.render(2000)

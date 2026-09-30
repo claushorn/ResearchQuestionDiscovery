@@ -142,3 +142,11 @@ def test_out_of_range_evidence_numbers_are_dropped_and_listed(env):
     investigate(ctx, ["prob-a"])
     check = ctx.investigations.load("prob-a")["checks"]["already_solved"]
     assert check["evidence"] == [1] and check["invalid_evidence"] == [7, 0, -1]
+
+
+def test_investigation_records_which_models_answered(env):
+    out = stream(tool_use("WebSearch", query="q"), agent_result(structured_output=ni_output(),
+                 modelUsage={"claude-opus-5-5": {}, "claude-opus-5": {}}))
+    ctx, _ = context(env, [out])
+    investigate(ctx, ["prob-a"])
+    assert ctx.investigations.load("prob-a")["investigated_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]

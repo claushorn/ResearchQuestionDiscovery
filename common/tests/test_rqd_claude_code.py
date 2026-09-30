@@ -68,3 +68,16 @@ def test_usage_limit_and_auth_stop(status, text):
 def test_missing_result_line_is_agent_error():
     with pytest.raises(AgentError, match="no result"):
         run(Runner(stream(tool_use("WebSearch", query="q")), code=1))
+
+
+def test_models_that_actually_answered_are_exposed():
+    out = stream(result(modelUsage={"claude-opus-5-5": {}, "claude-opus-5": {}}))
+    assert run(Runner(out)).models_used == ["claude-opus-5-5", "claude-opus-5"]
+
+
+def test_structured_call_exposes_models_used():
+    one = json.dumps(result(modelUsage={"claude-opus-5-5": {}, "claude-opus-5": {}}))
+    msg = ClaudeCodeClient(runner=Runner(one)).messages.create(
+        model="claude-opus-5-5", system=[{"text": "S"}], output_config={"effort": "low", "format": {"schema": SCHEMA}},
+        messages=[{"content": "u"}])
+    assert msg.models_used == ["claude-opus-5-5", "claude-opus-5"]

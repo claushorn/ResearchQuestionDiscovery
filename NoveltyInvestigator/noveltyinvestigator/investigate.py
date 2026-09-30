@@ -83,7 +83,7 @@ def investigate_one(ctx: NIContext, problem_id: str) -> dict:
                               "input_tokens": sum(u.get(k, 0) for k in ("input_tokens", "cache_creation_input_tokens",
                                                                          "cache_read_input_tokens")),
                               "turns": res.num_turns, "duration_s": round(res.duration_s, 1), "at": iso(utcnow()),
-                              "transcript": transcript},
+                              "transcript": transcript, "answered_by": res.models_used or [a.model]},
         "history": [],
     }
     if ctx.investigations.exists(problem_id):

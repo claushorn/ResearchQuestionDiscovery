@@ -51,6 +51,7 @@ class PERunReport:
     merged: int = 0
     unverified: int = 0
     retries: int = 0  # claude -p structured-output rewrites (num_turns > 2); 0 on the api backend
+    fallbacks: int = 0  # answers (partly) written by another model than configured, e.g. after a classifier stop
     output_tokens: int = 0
     input_tokens: int = 0
     invalid_merges: list[str] = field(default_factory=list)
@@ -70,7 +71,8 @@ class PERunReport:
         tpc = self.tokens_per_candidate()
         lines = [f"Run {self.run_id} (started {self.started})",
                  f"candidates processed: {self.processed}  new problems: {self.new}  merged: {self.merged}  "
-                 f"unverified explicit quotes: {self.unverified}  structured-output retries: {self.retries}",
+                 f"unverified explicit quotes: {self.unverified}  structured-output retries: {self.retries}  "
+                 f"model fallbacks: {self.fallbacks}",
                  f"output tokens: {self.output_tokens}  per candidate: {f'{tpc:.0f}' if tpc is not None else 'n/a'}"
                  + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (limit {budget})")]
         for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges),
@@ -162,8 +164,10 @@ def process(ctx: PEContext, client, candidate: dict) -> str:
     ctx.report.retries += max(0, getattr(message, "num_turns", 0) - 2)
     out: PEOutput = parse_structured(message, PEOutput)
     now = iso(utcnow())
+    answered_by = getattr(message, "models_used", None) or [ctx.cfg.extraction.model]
+    ctx.report.fallbacks += answered_by != [ctx.cfg.extraction.model]
     extracted_with = {"model": ctx.cfg.extraction.model, "run_id": ctx.report.run_id,
-                      "output_tokens": message.usage.output_tokens, "at": now}
+                      "output_tokens": message.usage.output_tokens, "at": now, "answered_by": answered_by}
     if out.merge_with is not None and out.merge_with not in shortlisted:
         ctx.report.invalid_merges.append(f"{cid}: {out.merge_with}")
         out = out.model_copy(update={"merge_with": None})

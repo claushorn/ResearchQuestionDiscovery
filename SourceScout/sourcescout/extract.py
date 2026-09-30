@@ -126,7 +126,8 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
             "unresolved_link_refs": unresolved,
             "evidence_verified": verified,
             "length_violations": violations,
-            "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now)},
+            "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now),
+                               "answered_by": getattr(message, "models_used", None) or [ctx.cfg.model]},
         }
         YamlStore(ctx.output_dir / now.strftime("%Y-%m")).save(record, record["candidate_id"])
     stat.candidates += len(result.candidates)

@@ -163,3 +163,12 @@ def test_candidate_files_are_written_atomically_via_the_shared_store(ctx, monkey
     add_item(ctx)
     run_extraction(ctx, FakeClient([message({"candidates": [cand()]})]), batch=False)
     assert saved and saved[0].startswith("cand-")
+
+
+def test_candidate_records_which_models_answered(ctx):
+    add_item(ctx)
+    m = message({"candidates": [cand()]})
+    m.models_used = ["claude-opus-5-5", "claude-opus-5"]
+    run_extraction(ctx, FakeClient([m]), batch=False)
+    [f] = ctx.output_dir.glob("*/*.yaml")
+    assert yaml.safe_load(f.read_text())["extracted_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]
