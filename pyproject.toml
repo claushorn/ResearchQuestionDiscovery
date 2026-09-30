@@ -19,6 +19,7 @@ dependencies = [
 sourcescout = "sourcescout.cli:app"
 problemextractor = "problemextractor.cli:app"
 noveltyinvestigator = "noveltyinvestigator.cli:app"
+economicvalue = "economicvalue.cli:app"
 
 [build-system]
 requires = ["hatchling"]

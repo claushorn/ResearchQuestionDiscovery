@@ -1,0 +1,33 @@
+# One assessment per problem: EconomicValueInvestigator/assessments/<problem_id>.yaml
+problem_id: prob-…
+revision: 1
+gate: passed | not_investigated | forced          # NoveltyInvestigator verdict check
+economic_value:
+  beneficiary: {type: AI_startup, description: ...}
+  pain: {score: 8, reasoning: ...}               # 1-10
+  current_cost: <estimate> | unknown
+  failure_cost: <estimate> | unknown
+  potential_value: <estimate> | unknown           # computed by code from factors, USD/year
+  buyer: CTO / Head_of_Research
+  deployment: {assessment: plausible | difficult | implausible | unknown, barriers: ...}
+  urgency: {level: low | medium | high | unknown, reasoning: ...}
+  willingness_to_pay: [{signal: ..., url: ..., quote: ...}]   # only verified evidence
+questions: {who_has_problem, how_frequently, how_expensive, current_practice, failure_consequence, deployment, buyer}
+factors: {affected_units: <estimate>|unknown, frequency_per_year: ..., cost_per_occurrence: ..., addressable_share: ...}
+evidence: [{title, url, kind, company, quote, verification: verified | quote_not_found | unfetchable}]
+warnings: {rejected_estimates: [...], unsupported_amounts: [...], unverified_wtp: [...]}
+search: {searches, fetches, queries, sufficient}
+confidence: 0.6
+score: {...}                                      # the free own-data score at assessment time
+assessed_with: {model, effort, answered_by, cost_usd_equivalent, output_tokens, input_tokens, turns, duration_s, at, transcript}
+history: []
+
+# <estimate> =
+#   low: 80000000
+#   high: 320000000
+#   unit: USD/year
+#   status: supported | assumption_only
+#   basis:
+#     - {type: source, url: ..., quote: "...", verification: verified}
+#     - {type: analogous_company, company: Acme, url: ..., quote: "...", verification: verified}
+#     - {type: explicit_assumption, assumption: "5-10% adopt a solution"}
