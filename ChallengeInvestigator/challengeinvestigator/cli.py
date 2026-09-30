@@ -40,7 +40,8 @@ def _open(root: Path) -> CIContext:
 @clean_errors
 @exclusive
 def headroom(ctx: typer.Context, item_ids: list[str] = typer.Argument(None, help="default: all unchecked finished challenges")):
-    """Gate: metric, winner, ceiling, baseline -> normalized headroom and verdict (solved / headroom / unclear)."""
+    """Gate from the scraped final leaderboard -> normalized headroom and verdict (solved / headroom / unclear /
+    not_applicable)."""
     failures = check_headroom(_open(ctx.obj), item_ids or None)
     for i, error in failures.items():
         typer.echo(f"FAILED {i}: {error}")
@@ -68,7 +69,7 @@ def list_challenges(ctx: typer.Context):
     recs = YamlStore(CIPaths(ctx.obj).challenges).all()
     for r in sorted(recs, key=lambda r: -(r["headroom"]["normalized_headroom"] or -1)):
         h = r["headroom"]
-        winner = f"{h['winner']['value']:g} {h['metric']}" if h["winner"] else f"? {h['metric']}"
+        winner = f"{h['winner']['value']:g} {h['metric']}" if h["winner"] else "-"
         typer.echo(f"{r['item_id']}  {_headline(h):<14} winner={winner[:40]:<40} "
                    f"investigated={'yes' if r.get('investigation') else 'no'}  {r['challenge']['title'][:70]}")
     typer.echo(f"{len(recs)} challenges checked")

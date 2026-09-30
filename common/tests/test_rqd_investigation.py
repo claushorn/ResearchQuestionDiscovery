@@ -64,3 +64,21 @@ def test_run_each_continues_after_agent_errors_and_stops_on_config_errors():
     assert run_each(["a", "bad", "b"], fn, log=log, tag="x", budget=1.0) == {"bad": "budget exhausted"}
     with pytest.raises(ExtractionConfigError):
         run_each(["a", "limit", "b"], fn, log=log, tag="x", budget=1.0)
+
+
+def test_run_each_item_errors_are_configurable():
+    import logging
+    from rqd.errors import ItemExtractionError
+    from rqd.investigation import run_each
+
+    class LayoutError(ItemExtractionError):
+        pass
+
+    def fn(rid):
+        if rid == "bad":
+            raise LayoutError("layout changed")
+        return "ok"
+    log = logging.getLogger("t")
+    assert run_each(["a", "bad"], fn, log=log, tag="x", budget=1.0, item_errors=(AgentError, LayoutError)) == {"bad": "layout changed"}
+    with pytest.raises(LayoutError):
+        run_each(["a", "bad"], fn, log=log, tag="x", budget=1.0)

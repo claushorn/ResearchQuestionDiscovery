@@ -1,125 +1,98 @@
 import pytest
 
-from ci_testing import evidence, headroom_output, val
-from challengeinvestigator.headroom import compute
-from challengeinvestigator.schema import HEADROOM_SCHEMA, HeadroomOutput
+from challengeinvestigator.config import MetricBound
+from challengeinvestigator.headroom import from_leaderboard, needs_baseline
+from challengeinvestigator.leaderboard import Leaderboard
 
-CEIL = val("ceiling", 1.0, basis="definition", evidence=0, definition="accuracy is at most 1.0")
-
-
-def c(values, ev=None, verification=None, threshold=0.10, **over):
-    out = HeadroomOutput.model_validate(headroom_output(values, ev, **over))
-    return compute(out, verification or ["verified"] * len(out.evidence), threshold)
+BOUNDS = [MetricBound(match="accuracy", direction="higher_is_better", ceiling=1.0, definition="accuracy is at most 1"),
+          MetricBound(match="log loss|centipawn", direction="lower_is_better", ceiling=0.0, definition="a loss is at least 0")]
 
 
-def test_schema_is_flat():
-    assert not [k for k, v in HEADROOM_SCHEMA["properties"].items() if v.get("type") == "object" or "$ref" in v]
+def lb(metric, scores, baselines=()):
+    return Leaderboard(url="https://lb.example", label="final", metric=metric,
+                       ranked=[(f"team{i}", s) for i, s in enumerate(scores, 1)], baselines=list(baselines))
 
 
-def test_headroom_with_baseline():
-    h = c([val("winner", 0.9), CEIL, val("baseline", 0.5, evidence=2)])
-    assert h["normalized_headroom"] == pytest.approx(0.2) and h["verdict"] == "headroom"
-    assert h["winner"]["team"] == "Team X" and h["ceiling"]["basis"][0]["type"] == "definition"
+def h(board, baseline=None, threshold=0.10):
+    return from_leaderboard(board, BOUNDS, threshold, baseline)
 
 
-def test_solved_when_gap_below_threshold():
-    ev = evidence("winner reached 0.97 accuracy overall", "the baseline got 0.62 accuracy")
-    h = c([val("winner", 0.97), CEIL, val("baseline", 0.62, evidence=2)], ev=ev)
-    assert h["normalized_headroom"] == pytest.approx(0.03 / 0.38) and h["verdict"] == "solved"
+def test_lower_is_better_uses_the_strongest_baseline_row():
+    r = h(lb("Average Centipawn Loss (ACPL)", [19.369, 23.495], [("gpt", 68.623), ("sft", 71.921)]))
+    assert r["direction"] == "lower_is_better" and r["winner"] == {"value": 19.369, "team": "team1"}
+    assert r["baseline"]["value"] == 68.623 and r["baseline"]["basis"] == {"type": "leaderboard", "name": "gpt"}
+    assert r["ceiling"] == {"value": 0.0, "basis": {"type": "definition", "definition": "a loss is at least 0"}}
+    assert r["normalized_headroom"] == pytest.approx(19.369 / 68.623) and r["verdict"] == "headroom"
 
 
-def test_without_baseline_gap_relative_to_ceiling():
-    ev = evidence("winner reached 0.95 accuracy overall")
-    h = c([val("winner", 0.95), CEIL], ev=ev)
-    assert h["normalized_headroom"] == pytest.approx(0.05) and h["verdict"] == "solved"
+def test_higher_is_better_without_baseline_relative_to_ceiling():
+    r = h(lb("Accuracy", [0.95, 0.9]))
+    assert r["normalized_headroom"] == pytest.approx(0.05) and r["verdict"] == "solved"
+    assert h(lb("Accuracy", [0.9, 0.8]))["verdict"] == "headroom"  # exactly 10% left
 
 
-def test_threshold_edge_counts_as_headroom():
-    ev = evidence("winner reached 0.9 accuracy overall")
-    assert c([val("winner", 0.9), CEIL], ev=ev)["verdict"] == "headroom"  # exactly 10% left
+def test_higher_is_better_with_baseline():
+    r = h(lb("accuracy", [0.9, 0.8], [("starter", 0.5)]))
+    assert r["normalized_headroom"] == pytest.approx(0.2)
 
 
-def test_winner_not_in_quote_is_unclear_never_solved():
-    h = c([val("winner", 0.99), CEIL])
-    assert h["verdict"] == "unclear" and any("winner" in w for w in h["warnings"])
+def test_metric_without_known_bound_is_unclear():
+    r = h(lb("Score", [5.0, 6.0]))
+    assert r["verdict"] == "unclear" and r["ceiling"] is None and any("metric_bounds" in w for w in r["warnings"])
 
 
-def test_ceiling_needs_source_or_stated_definition():
-    assert c([val("winner", 0.9), val("ceiling", 1.0, basis="definition", evidence=0)])["verdict"] == "unclear"
-    assert c([val("winner", 0.9), val("ceiling", 1.0, evidence=1)])["verdict"] == "unclear"  # 1.0 not in quote
+def test_rank_order_must_agree_with_the_metric_direction():
+    r = h(lb("Accuracy", [0.7, 0.8]))  # ranked ascending: not accuracy as we know it
+    assert r["verdict"] == "unclear" and any("rank order" in w for w in r["warnings"])
 
 
-def test_definition_basis_not_allowed_for_winner():
-    h = c([val("winner", 0.9, basis="definition", evidence=0, definition="trust me"), CEIL])
-    assert h["verdict"] == "unclear"
+def test_unsorted_leaderboard_is_unclear():
+    r = h(lb("Accuracy", [0.9, 0.7, 0.8]))
+    assert r["verdict"] == "unclear" and any("not sorted" in w for w in r["warnings"])
 
 
-def test_disagreeing_winner_values_are_unclear():
-    # review: taking the max of a private 0.9 and a public 0.99 turned "unclear" into "solved"
-    ev = evidence("Team X scored 0.9 on the private leaderboard", "Team X scored 0.99 on the public leaderboard")
-    h = c([val("winner", 0.9), val("winner", 0.99, evidence=2), CEIL], ev=ev)
-    assert h["verdict"] == "unclear" and h["winner"] is None and any("disagree" in w for w in h["warnings"])
+def test_single_row_uses_the_metric_direction():
+    assert h(lb("Accuracy", [0.8]))["verdict"] == "headroom"
 
 
-def test_agreeing_winner_values_from_two_sources():
-    ev = evidence("Team X scored 0.9 on the private leaderboard", "the winners reached 0.9 on the private set")
-    assert c([val("winner", 0.9), val("winner", 0.9, evidence=2), CEIL], ev=ev)["verdict"] == "headroom"
-
-
-def test_ordinal_does_not_back_a_winner():
-    ev = evidence("The 1st place team achieved the top score on the private leaderboard")
-    assert c([val("winner", 1.0), CEIL], ev=ev)["verdict"] == "unclear"
-
-
-def test_hundredfold_reading_needs_a_percent_sign():
-    ev = evidence("the winning entry reached 0.95 on the test set")
-    h = c([val("winner", 95), val("ceiling", 100, basis="definition", evidence=0, definition="at most 100%")], ev=ev)
-    assert h["verdict"] == "unclear"
-
-
-def test_definition_ceiling_must_state_a_canonical_bound():
-    # review: "trust me, 0.9 is the max" turned winner 0.9 into solved
-    ev = evidence("Team X scored 0.9 on the private leaderboard")
-    trust = val("ceiling", 0.9, basis="definition", evidence=0, definition="trust me, 0.9 is the max")
-    assert c([val("winner", 0.9), trust], ev=ev)["verdict"] == "unclear"
-    unstated = val("ceiling", 1.0, basis="definition", evidence=0, definition="accuracy is bounded")
-    assert c([val("winner", 0.9), unstated], ev=ev)["verdict"] == "unclear"
-    twenty = val("ceiling", 20, basis="definition", evidence=0, definition="the score is at most 20")
-    ev20 = evidence("Team X scored 19.4 on the private leaderboard")
-    assert c([val("winner", 19.4), twenty], ev=ev20)["verdict"] == "unclear"
+def test_lower_is_better_without_baseline_needs_one():
+    r = h(lb("Log Loss", [0.2532, 0.2731]))
+    assert r["verdict"] == "unclear" and needs_baseline(r) and any("baseline" in w for w in r["warnings"])
+    looked_up = {"value": 0.6, "basis": {"type": "source", "url": "u", "quote": "q", "verification": "verified"}}
+    r = h(lb("Log Loss", [0.2532, 0.2731]), baseline=looked_up)
+    assert r["normalized_headroom"] == pytest.approx(0.2532 / 0.6) and not needs_baseline(r)
+    assert r["baseline"] == looked_up
 
 
 def test_winner_worse_than_baseline_is_unclear():
-    ev = evidence("Team X scored 0.2 on the private leaderboard", "the organisers' baseline reached 0.5 accuracy")
-    h = c([val("winner", 0.2), CEIL, val("baseline", 0.5, evidence=2)], ev=ev)
-    assert h["verdict"] == "unclear" and h["normalized_headroom"] is None and any("baseline" in w for w in h["warnings"])
-
-
-def test_percent_quotes_match_fraction_or_percent_values():
-    ev = evidence("the winning entry reached 87.1% accuracy")
-    assert c([val("winner", 0.871), CEIL], ev=ev)["winner"]["value"] == 0.871
-    assert c([val("winner", 87.1), val("ceiling", 100, basis="definition", evidence=0, definition="max 100%")], ev=ev)["winner"]
-
-
-def test_lower_is_better_with_and_without_baseline():
-    ev = evidence("the winner's error was 0.2 on the test set", "the baseline error was 0.5 on the test set")
-    zero = val("ceiling", 0.0, basis="definition", evidence=0, definition="error cannot be below 0")
-    h = c([val("winner", 0.2), zero, val("baseline", 0.5, evidence=2)], ev=ev, direction="lower_is_better")
-    assert h["normalized_headroom"] == pytest.approx(0.4) and h["verdict"] == "headroom"
-    h = c([val("winner", 0.2), zero], ev=ev, direction="lower_is_better")
-    assert h["verdict"] == "unclear" and any("baseline" in w for w in h["warnings"])
+    r = h(lb("Log Loss", [0.7, 0.8], [("benchmark", 0.5)]))
+    assert r["verdict"] == "unclear" and r["normalized_headroom"] is None and any("worse than the baseline" in w for w in r["warnings"])
 
 
 def test_winner_beyond_ceiling_is_unclear():
-    ev = evidence("the winner scored 1.2 on the benchmark")
-    assert c([val("winner", 1.2), CEIL], ev=ev)["verdict"] == "unclear"
+    r = h(lb("Accuracy (%)", [97.0, 90.0]))
+    assert r["verdict"] == "unclear" and any("beyond the ceiling" in w for w in r["warnings"])
 
 
-def test_unverified_evidence_does_not_back_a_value():
-    assert c([val("winner", 0.9), CEIL], verification=["quote_not_found", "verified"])["verdict"] == "unclear"
+def test_top_rows_are_recorded():
+    r = h(lb("Accuracy", [0.9 - i / 100 for i in range(15)]))
+    assert len(r["leaderboard"]["top"]) == 10 and r["leaderboard"]["top"][0] == {"rank": 1, "team": "team1", "score": 0.9}
 
 
-def test_verified_leaderboard_row_backs_the_winner():
-    ev = [{"title": "LB", "url": "https://c.example/lb", "kind": "leaderboard", "quote": "wulfebw 0.9"}]
-    h = c([val("winner", 0.9), CEIL], ev=ev, verification=["verified_row"])
-    assert h["winner"]["value"] == 0.9 and h["winner"]["basis"][0]["verification"] == "verified_row"
+@pytest.mark.parametrize("metric, direction", [
+    # metric names measured on the real AIcrowd/DrivenData leaderboards (2026-09-30)
+    ("Log Loss", "lower_is_better"), ("Agg Log Loss", "lower_is_better"),
+    ("Agg Root-mean-square error", "lower_is_better"), ("Root-mean-square error", "lower_is_better"),
+    ("Average Root Mean Squared Error", "lower_is_better"), ("Mean Absolute Error", "lower_is_better"),
+    ("Normalized MAE", "lower_is_better"), ("Average Centipawn Loss (ACPL)", "lower_is_better"),
+    ("Dice coefficient", "higher_is_better"), ("Jaccard index", "higher_is_better"),
+    ("Mean Average Precision", "higher_is_better"), ("Macro F1 Score @ 0.75 IoU", "higher_is_better"),
+    ("Mean Normalized Reward", "higher_is_better"),
+    ("Score", None), ("Weighted Class Score", None), ("See problem description", None), ("CompletedTaskCount", None),
+])
+def test_configured_metric_bounds_on_measured_metric_names(metric, direction):
+    from pathlib import Path
+    from challengeinvestigator.config import load_config
+    bounds = load_config(Path(__file__).resolve().parents[1] / "config.yaml").metric_bounds
+    r = from_leaderboard(lb(metric, [0.5]), bounds, 0.10)
+    assert (r["ceiling"] is not None and r["direction"]) == (direction if direction else False)

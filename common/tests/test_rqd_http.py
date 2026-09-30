@@ -58,3 +58,10 @@ def test_throttle_per_host():
     f.get("https://a.example/1")
     f.get("https://a.example/2")
     assert sleeps and all(s == 2.0 for s in sleeps)
+
+
+def test_http_error_carries_the_status():
+    f = make_fetcher({})
+    with pytest.raises(SourceFetchError) as e:
+        f.get("https://a.example/missing")
+    assert e.value.status == 404
