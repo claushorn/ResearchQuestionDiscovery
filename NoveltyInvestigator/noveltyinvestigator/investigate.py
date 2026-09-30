@@ -1,7 +1,6 @@
 """Adversarial novelty investigation of user-picked problems: one `claude -p` agent session each, then
 deterministic verification of every cited work."""
 import logging
-import time
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -12,7 +11,7 @@ from noveltyinvestigator.schema import NI_SCHEMA, NIOutput, to_record_fields
 from rqd.claude_code import ClaudeCodeClient
 from rqd.errors import AgentError, RqdError
 from rqd.http import Fetcher
-from rqd.investigation import run_agent_logged, run_info, search_summary, with_history
+from rqd.investigation import run_agent_logged, run_each, run_info, search_summary, with_history
 from rqd.records import YamlStore
 from rqd.verify import verify_work
 from rqd.timeutil import utcnow
@@ -77,18 +76,9 @@ def investigate(ctx: NIContext, problem_ids: list[str]) -> dict[str, str]:
     for pid in problem_ids:
         if not ctx.problems.exists(pid):
             raise RqdError(f"no problem {pid}", fix="See `uv run problemextractor list`")
-    failures: dict[str, str] = {}
-    for i, pid in enumerate(problem_ids, 1):
-        log.info("[ni %d/%d] %s: investigating (budget $%.2f) ...", i, len(problem_ids), pid, ctx.cfg.agent.max_budget_usd)
-        started = time.monotonic()
-        try:
-            rec = investigate_one(ctx, pid)
-        except AgentError as e:
-            failures[pid] = str(e)
-            log.warning("[ni %d/%d] %s -> FAILED %s", i, len(problem_ids), pid, str(e)[:200])
-            continue
-        log.info("[ni %d/%d] %s -> %s (confidence %.2f), %d searches, %d/%d works verified (%.0fs)", i,
-                 len(problem_ids), pid, rec["novelty"]["status"], rec["confidence"], rec["search"]["searches"],
-                 sum(w["verification"] == "verified" for w in rec["closest_work"]), len(rec["closest_work"]),
-                 time.monotonic() - started)
-    return failures
+    def one(pid: str) -> str:
+        rec = investigate_one(ctx, pid)
+        verified = sum(w["verification"] == "verified" for w in rec["closest_work"])
+        return (f"{rec['novelty']['status']} (confidence {rec['confidence']:.2f}), {rec['search']['searches']} searches, "
+                f"{verified}/{len(rec['closest_work'])} works verified")
+    return run_each(problem_ids, one, log=log, tag="ni", budget=ctx.cfg.agent.max_budget_usd)

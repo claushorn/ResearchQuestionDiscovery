@@ -1,18 +1,20 @@
 """Parse monetary amounts as stated in payment signals and evidence ("$1.5M", "nearly £50m",
-"$212,000 — $339,000 USD", "Award ceiling: 250,000"). No amount is ever invented: a bare number counts only
-if it has thousands separators or a magnitude suffix, and a currency is only assigned when stated or when the
-caller passes an explicit per-source default."""
+"$212,000 — $339,000 USD", "Award ceiling: 250,000", "10-15 million", "40 million dollars"). No amount is ever
+invented: a bare number counts only if it has thousands separators or a magnitude suffix, and a currency is only
+assigned when stated or when the caller passes an explicit per-source default. `figures` lists every number in a
+quote (bare numbers and percentages included) so a cited estimate can be checked against its quote."""
 import re
 from dataclasses import dataclass
 
 _SYMBOL = {"$": "USD", "£": "GBP", "€": "EUR"}
-_CODES = ("USD", "GBP", "EUR")
+_WORDS = {"dollar": "USD", "dollars": "USD", "pound": "GBP", "pounds": "GBP", "euro": "EUR", "euros": "EUR"}
 _SCALE = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "billion": 1e9}
-_AMOUNT = re.compile(
-    r"(?P<pre>[$£€]|\b(?:USD|GBP|EUR)\s?)?"
-    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)"
+_TOKEN = re.compile(
+    r"(?P<pre>[$£€]\s?|\b(?:USD|GBP|EUR)\s?)?"
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?)"
+    r"(?P<pct>\s?(?:%|percent\b))?"
     r"(?:\s?(?P<suf>k|mn|m|million|bn|b|billion)\b)?"
-    r"(?:\s?(?P<post>USD|GBP|EUR)\b)?", re.IGNORECASE)
+    r"(?:\s?(?P<post>USD|GBP|EUR|dollars?|pounds?|euros?)\b)?", re.IGNORECASE)
 _RANGE_SEP = re.compile(r"^\s*(?:—|–|-|to)\s*$", re.IGNORECASE)
 
 
@@ -22,34 +24,66 @@ class Money:
     high: float
     currency: str | None
     text: str
+    scaled: bool = False  # had a magnitude suffix (k, m, bn ...)
 
 
-def _one(m: re.Match) -> tuple[float, str | None, bool] | None:
-    pre, num, suf, post = m.group("pre"), m.group("num"), m.group("suf"), m.group("post")
-    currency = _SYMBOL.get(pre.strip()) if pre and pre.strip() in _SYMBOL else (pre.strip().upper() if pre else None)
-    currency = currency or (post.upper() if post else None)
-    if not (currency or suf or "," in num):
-        return None  # a bare number (year, count, date part) is not money
-    value = float(num.replace(",", "")) * (_SCALE[suf.lower()] if suf else 1)
-    return value, currency, bool(suf or "," in num or currency)
+@dataclass(frozen=True)
+class _Tok:
+    value: float        # unscaled
+    scale: float
+    currency: str | None
+    money_like: bool    # currency, suffix or thousands separators
+    percent: bool
+    start: int
+    end: int
+
+
+def _tokens(text: str) -> list[_Tok]:
+    out = []
+    for m in _TOKEN.finditer(text or ""):
+        pre, num, suf, post = m.group("pre"), m.group("num"), m.group("suf"), m.group("post")
+        pre = pre.strip() if pre else None
+        currency = _SYMBOL.get(pre) if pre in _SYMBOL else (pre.upper() if pre else None)
+        if post:
+            currency = currency or _WORDS.get(post.lower(), post.upper())
+        grouped = "," in num or num.count(".") >= 2
+        value = float(num.replace(",", "") if "," in num else (num.replace(".", "") if num.count(".") >= 2 else num))
+        out.append(_Tok(value, _SCALE[suf.lower()] if suf else 1.0, currency, bool(currency or suf or grouped),
+                        bool(m.group("pct")), m.start(), m.end()))
+    return out
 
 
 def parse_amounts(text: str, default_currency: str | None = None) -> list[Money]:
-    found = [(m, _one(m)) for m in _AMOUNT.finditer(text or "")]
-    found = [(m, v) for m, v in found if v is not None]
+    toks = [t for t in _tokens(text) if not t.percent]
     out: list[Money] = []
     i = 0
-    while i < len(found):
-        m, (value, currency, _) = found[i]
-        if i + 1 < len(found):
-            m2, (value2, currency2, _) = found[i + 1]
-            if _RANGE_SEP.match(text[m.end():m2.start()]):  # "$212,000 — $339,000 USD"
-                cur = currency or currency2 or default_currency
-                out.append(Money(min(value, value2), max(value, value2), cur, text[m.start():m2.end()].strip()))
-                i += 2
-                continue
-        out.append(Money(value, value, currency or default_currency, m.group(0).strip()))
+    while i < len(toks):
+        t = toks[i]
+        if i + 1 < len(toks) and toks[i + 1].money_like and _RANGE_SEP.match(text[t.end:toks[i + 1].start]):
+            u = toks[i + 1]  # "$3.5-4.5m", "10-15 million", "$212,000 — $339,000 USD"
+            scale_low = t.scale if t.scale != 1.0 else u.scale
+            lo, hi = t.value * scale_low, u.value * u.scale
+            out.append(Money(min(lo, hi), max(lo, hi), t.currency or u.currency or default_currency,
+                             text[t.start:u.end].strip(), t.scale != 1.0 or u.scale != 1.0))
+            i += 2
+            continue
+        if t.money_like:
+            out.append(Money(t.value * t.scale, t.value * t.scale, t.currency or default_currency,
+                             text[t.start:t.end].strip(), t.scale != 1.0))
         i += 1
+    return out
+
+
+def figures(text: str) -> list[tuple[float, str | None]]:
+    """Every number stated in a quote: (value, currency | '%' | None). Percentages as fractions; range ends separately."""
+    out = []
+    for t in _tokens(text):
+        if t.percent:
+            out.append((t.value / 100, "%"))
+        else:
+            out.append((t.value * t.scale, t.currency))
+    for m in parse_amounts(text):  # ranges propagate a suffix/currency to their low end ("$3.5-4.5m")
+        out += [(m.low, m.currency), (m.high, m.currency)]
     return out
 
 

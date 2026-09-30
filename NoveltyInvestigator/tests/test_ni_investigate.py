@@ -13,7 +13,7 @@ from noveltyinvestigator.investigate import NIContext, investigate
 from rqd.claude_code import ClaudeCodeClient
 from rqd.errors import ExtractionConfigError, RqdError
 from rqd.records import YamlStore
-from rqd_testing import agent_result, make_fetcher, stream, tool_use
+from rqd_testing import FakeRunner, agent_result, make_fetcher, stream, tool_use
 
 NI_ROOT = Path(__file__).resolve().parents[1]
 PAGES = {"GET https://paper.example/af2": "<html><body>AlphaFold predicts protein structures with atomic accuracy.</body></html>",
@@ -26,14 +26,6 @@ def agent_stream(n_search=4, output=None, **result_kw):
     return stream(*events, agent_result(structured_output=output or ni_output(), **result_kw))
 
 
-class Runner:
-    def __init__(self, outputs):
-        self.outputs, self.calls = list(outputs), []
-
-    def __call__(self, args, *, input, env, cwd, timeout):
-        self.calls.append(input)
-        out = self.outputs.pop(0)
-        return subprocess.CompletedProcess(args, 0 if '"is_error": false' in out else 1, stdout=out, stderr="")
 
 
 @pytest.fixture
@@ -49,7 +41,7 @@ def env(tmp_path):
 
 def context(root, outputs):
     paths = NIPaths(root)
-    runner = Runner(outputs)
+    runner = FakeRunner(*outputs)
     return NIContext.open(paths, load_config(paths.config), client=ClaudeCodeClient(runner=runner),
                           fetcher=make_fetcher(PAGES), run_id="RUN1"), runner
 
@@ -58,7 +50,7 @@ def test_investigation_record_with_counted_search_and_verified_evidence(env):
     ctx, runner = context(env, [agent_stream()])
     assert investigate(ctx, ["prob-a"]) == {}
     rec = ctx.investigations.load("prob-a")
-    assert "Predict 3D protein structure" in runner.calls[0]
+    assert "Predict 3D protein structure" in runner.calls[0]["input"]
     assert rec["novelty"] == {"status": "partially_solved"} and rec["confidence"] == 0.8
     assert rec["checks"]["already_solved"]["answer"] == "partially"
     assert [w["verification"] for w in rec["closest_work"]] == ["verified", "quote_not_found"]
@@ -109,7 +101,7 @@ def test_unknown_problem_is_clean_error(env):
 
 
 def test_cli_investigate_list_show(env, monkeypatch):
-    monkeypatch.setattr(cli, "make_agent_client", lambda: ClaudeCodeClient(runner=Runner([agent_stream(n_search=1)])))
+    monkeypatch.setattr(cli, "make_agent_client", lambda: ClaudeCodeClient(runner=FakeRunner(agent_stream(n_search=1))))
     monkeypatch.setattr(cli, "make_fetcher_for", lambda cfg: make_fetcher(PAGES))
     runner = CliRunner()
     res = runner.invoke(app, ["--root", str(env), "investigate", "prob-a"])
@@ -122,14 +114,14 @@ def test_cli_investigate_list_show(env, monkeypatch):
 
 
 def test_timeout_is_reported_and_next_problem_continues(env):
-    class TimeoutThenOk(Runner):
+    class TimeoutThenOk(FakeRunner):
         def __call__(self, args, *, input, env, cwd, timeout):
             if not self.calls:
-                self.calls.append(input)
+                self.calls.append({"input": input})
                 raise subprocess.TimeoutExpired(args, timeout, output=stream(tool_use("WebSearch", query="q")))
             return super().__call__(args, input=input, env=env, cwd=cwd, timeout=timeout)
     paths = NIPaths(env)
-    ctx = NIContext.open(paths, load_config(paths.config), client=ClaudeCodeClient(runner=TimeoutThenOk([agent_stream()])),
+    ctx = NIContext.open(paths, load_config(paths.config), client=ClaudeCodeClient(runner=TimeoutThenOk(agent_stream())),
                          fetcher=make_fetcher(PAGES), run_id="RUN1")
     failures = investigate(ctx, ["prob-a", "prob-b"])
     assert list(failures) == ["prob-a"] and "timed out" in failures["prob-a"]

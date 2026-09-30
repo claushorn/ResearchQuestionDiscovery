@@ -1,7 +1,6 @@
 """Paid economic assessment of user-picked problems: one agent session each, then code-side verification and
 estimate rules (estimates.py). NoveltyInvestigator's 'solved' verdict blocks assessment unless forced."""
 import logging
-import time
 from dataclasses import dataclass
 
 from pydantic import ValidationError
@@ -12,9 +11,9 @@ from economicvalue.prompt import render_input, system_prompt
 from economicvalue.schema import EV_SCHEMA, EVOutput
 from economicvalue.score import score_problem
 from rqd.claude_code import ClaudeCodeClient
-from rqd.errors import AgentError, RqdError
+from rqd.errors import AgentError, ConfigError, RqdError
 from rqd.http import Fetcher
-from rqd.investigation import run_agent_logged, run_info, search_summary, with_history
+from rqd.investigation import run_agent_logged, run_each, run_info, search_summary, with_history
 from rqd.records import YamlStore
 from rqd.timeutil import utcnow
 from rqd.verify import verify_work
@@ -37,9 +36,17 @@ class EVContext:
     @classmethod
     def open(cls, paths: EVPaths, cfg: EVConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "EVContext":
-        return cls(cfg, paths, YamlStore((paths.root / cfg.problemextractor_root).resolve() / "problems"),
+        return cls(cfg, paths, problems_store(paths, cfg),
                    YamlStore((paths.root / cfg.noveltyinvestigator_root).resolve() / "investigations"),
                    YamlStore(paths.assessments), client, fetcher, run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
+
+
+def problems_store(paths: EVPaths, cfg: EVConfig) -> YamlStore:
+    directory = (paths.root / cfg.problemextractor_root).resolve() / "problems"
+    if not directory.is_dir():
+        raise ConfigError(f"problems directory not found: {directory}",
+                          fix="Set problemextractor_root in EconomicValueInvestigator/config.yaml")
+    return YamlStore(directory)
 
 
 def gate(ctx: EVContext, problem_id: str, force: bool) -> str:
@@ -48,7 +55,12 @@ def gate(ctx: EVContext, problem_id: str, force: bool) -> str:
     if not ctx.investigations.exists(problem_id):
         log.warning("%s: not investigated by NoveltyInvestigator; assessing anyway", problem_id)
         return "not_investigated"
-    if ctx.investigations.load(problem_id)["novelty"]["status"] == "solved":
+    try:
+        status = ctx.investigations.load(problem_id)["novelty"]["status"]
+    except (KeyError, TypeError) as e:
+        raise RqdError(f"malformed investigation file for {problem_id} ({e!r})",
+                       fix=f"Re-run `noveltyinvestigator investigate {problem_id}` or remove the file") from e
+    if status == "solved":
         if not force:
             raise RqdError(f"{problem_id}: NoveltyInvestigator marked it solved",
                            fix="Pick another problem, or pass --force to assess it anyway")
@@ -104,18 +116,9 @@ def assess_one(ctx: EVContext, problem_id: str, gate_result: str) -> dict:
 def assess(ctx: EVContext, problem_ids: list[str], force: bool = False) -> dict[str, str]:
     """Assess each problem; returns {problem_id: error}. Gates are checked for all ids before any spend."""
     gates = {pid: gate(ctx, pid, force) for pid in problem_ids}
-    failures: dict[str, str] = {}
-    for i, pid in enumerate(problem_ids, 1):
-        log.info("[ev %d/%d] %s: assessing (budget $%.2f) ...", i, len(problem_ids), pid, ctx.cfg.agent.max_budget_usd)
-        started = time.monotonic()
-        try:
-            rec = assess_one(ctx, pid, gates[pid])
-        except AgentError as e:
-            failures[pid] = str(e)
-            log.warning("[ev %d/%d] %s -> FAILED %s", i, len(problem_ids), pid, str(e)[:200])
-            continue
+    def one(pid: str) -> str:
+        rec = assess_one(ctx, pid, gates[pid])
         pv = rec["economic_value"]["potential_value"]
-        log.info("[ev %d/%d] %s -> potential %s, %d warnings (%.0fs)", i, len(problem_ids), pid,
-                 pv if pv == "unknown" else f"{pv['low']:,.0f}-{pv['high']:,.0f} USD/year ({pv['status']})",
-                 sum(len(v) for v in rec["warnings"].values()), time.monotonic() - started)
-    return failures
+        value = pv if pv == "unknown" else f"{pv['low']:,.0f}-{pv['high']:,.0f} USD/year ({pv['status']}, {pv['model']})"
+        return f"potential {value}, {sum(len(v) for v in rec['warnings'].values())} warnings"
+    return run_each(problem_ids, one, log=log, tag="ev", budget=ctx.cfg.agent.max_budget_usd)

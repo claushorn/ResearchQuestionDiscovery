@@ -15,9 +15,9 @@ def test_pdf_to_text_extracts_page_text():
 @pytest.mark.parametrize("route, quote, expected", [
     (HTML, "predicts protein structures with atomic accuracy", "verified"),
     (HTML, "a sentence the page does not contain", "quote_not_found"),
-    (httpx.Response(404), "anything", "unfetchable"),
+    (httpx.Response(404), "any quoted text", "unfetchable"),
     (httpx.Response(200, content=pdf_bytes("A three-track network for structure"),
-                    headers={"content-type": "application/pdf"}), "three-track network", "verified"),
+                    headers={"content-type": "application/pdf"}), "A three-track network", "verified"),
 ])
 def test_verify_work(route, quote, expected):
     f = make_fetcher({"GET https://paper.example/x": route})
@@ -26,15 +26,22 @@ def test_verify_work(route, quote, expected):
 
 def test_robots_disallow_is_unfetchable():
     f = make_fetcher({"GET https://paper.example/x": HTML}, robots="User-agent: *\nDisallow: /\n")
-    assert verify_work(f, "https://paper.example/x", "atomic accuracy") == "unfetchable"
+    assert verify_work(f, "https://paper.example/x", "with atomic accuracy") == "unfetchable"
 
 
 @pytest.mark.parametrize("url", ["", "not a url", "ftp://paper.example/x"])
 def test_model_supplied_non_http_url_is_unfetchable(url):
-    assert verify_work(make_fetcher({}), url, "quote") == "unfetchable"
+    assert verify_work(make_fetcher({}), url, "some quoted text") == "unfetchable"
 
 
 def test_unparsable_pdf_is_unfetchable():
     f = make_fetcher({"GET https://paper.example/x": httpx.Response(200, content=b"%PDF-1.4 broken",
                                                                    headers={"content-type": "application/pdf"})})
-    assert verify_work(f, "https://paper.example/x", "quote") == "unfetchable"
+    assert verify_work(f, "https://paper.example/x", "some quoted text") == "unfetchable"
+
+
+def test_too_short_quote_is_not_verified():
+    f = make_fetcher({"GET https://paper.example/x": HTML})
+    assert verify_work(f, "https://paper.example/x", "$") == "quote_too_short"
+    assert verify_work(f, "https://paper.example/x", "atomic accuracy") == "quote_too_short"
+    assert verify_work(f, "https://paper.example/x", "structures with atomic accuracy") == "verified"

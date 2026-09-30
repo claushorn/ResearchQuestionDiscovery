@@ -23,3 +23,8 @@ def test_terminal_punctuation_of_the_excerpt_is_ignored():
 def test_wording_must_still_match_exactly():
     assert not quote_in_text("Greenoaks led the first.", "while Greenoaks led the second, Saban said.")
     assert not quote_in_text("they cannot securely coordinate", "they still can't securely coordinate")
+
+
+def test_quote_must_end_at_a_word_or_number_boundary():
+    assert not quote_in_text("costs $40.", "the fix costs $400 per unit")
+    assert quote_in_text("costs $400.", "the fix costs $400 per unit")

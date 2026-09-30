@@ -13,7 +13,7 @@ def ni_output(**over) -> dict:
             "closest_work": [{"title": "AlphaFold2", "url": "https://paper.example/af2", "year": 2021, "kind": "paper",
                               "quote": "predicts protein structures with atomic accuracy", "how_close": "solves it for monomers"},
                              {"title": "RoseTTAFold", "url": "https://paper.example/rf.pdf", "year": 2021, "kind": "paper",
-                              "quote": "three-track network", "how_close": "similar"}],
+                              "quote": "a three-track network", "how_close": "similar"}],
             "difference_from_closest_work": "complexes remain harder",
             "strongest_counterargument": "the core problem is solved",
             "confidence": 0.8}

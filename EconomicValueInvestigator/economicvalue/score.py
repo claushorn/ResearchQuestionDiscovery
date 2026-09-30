@@ -27,7 +27,8 @@ def score_problem(record: dict, rates: dict[str, float], defaults: dict[str, str
     deadlines = sorted(str(s["payment_signal"]["deadline"]) for s in record["sources"] if s["payment_signal"].get("deadline"))
     return {"problem_id": record["problem_id"], "statement": record["problem"]["precise_statement"],
             "sources": len(record["sources"]), "distinct_source_ids": len({s["source_id"] for s in record["sources"]}),
-            "best_tier": min((s["tier"] for s in record["sources"]), key=_TIER_ORDER.index),
+            "best_tier": min((s["tier"] for s in record["sources"]),
+                             key=lambda t: _TIER_ORDER.index(t) if t in _TIER_ORDER else len(_TIER_ORDER)),
             "payment_types": dict(sorted(Counter(s["payment_signal"]["type"] for s in record["sources"]).items())),
             "max_committed_usd": max(committed) if committed else None,
             "salary_range_usd": [min(salaries), max(salaries)] if salaries else None,

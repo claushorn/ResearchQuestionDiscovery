@@ -1,5 +1,6 @@
 """Test helpers shared by all capability test suites (unique module name: no conftest collisions)."""
 import json
+import subprocess
 
 import httpx
 
@@ -62,3 +63,17 @@ def pdf_bytes(text: str) -> bytes:
     xref = len(out)
     out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offsets)
     return out + b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+
+
+class FakeRunner:
+    """Stands in for subprocess.run(["claude", "-p", ...]): returns the given stdout strings in order and records
+    each call. Exit code: `code` if given, else 0 for a successful result event, 1 otherwise."""
+
+    def __init__(self, *outputs: str, code: int | None = None):
+        self.outputs, self.code, self.calls = list(outputs), code, []
+
+    def __call__(self, args, *, input, env, cwd, timeout):
+        self.calls.append({"args": args, "input": input, "env": env, "timeout": timeout})
+        out = self.outputs.pop(0)
+        code = self.code if self.code is not None else (0 if '"is_error": false' in out else 1)
+        return subprocess.CompletedProcess(args, code, stdout=out, stderr="")

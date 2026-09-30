@@ -32,4 +32,21 @@ def test_to_usd_uses_configured_rates_and_refuses_unknown():
     [m] = parse_amounts("£50m")
     assert to_usd(m, RATES) == (62_500_000, 62_500_000)
     assert to_usd(parse_amounts("Award ceiling: 250,000")[0], RATES) is None
-    assert to_usd(parse_amounts("CHF 5,000")[0] if parse_amounts("CHF 5,000") else None, RATES) is None
+
+
+@pytest.mark.parametrize("text, expected", [
+    ("$3.5-4.5m", [(3_500_000, 4_500_000, "USD")]),
+    ("10-15 million", [(10_000_000, 15_000_000, None)]),
+    ("3.5 to 4.5 million USD", [(3_500_000, 4_500_000, "USD")]),
+    ("€1.000.000", [(1_000_000, 1_000_000, "EUR")]),
+    ("about $ 40M annually", [(40_000_000, 40_000_000, "USD")]),
+    ("40 million dollars", [(40_000_000, 40_000_000, "USD")]),
+    ("a 40M loss", [(40_000_000, 40_000_000, None)]),
+])
+def test_parse_amounts_review_cases(text, expected):
+    assert [(m.low, m.high, m.currency) for m in parse_amounts(text)] == expected
+
+
+def test_unknown_currency_code_is_not_converted():
+    [m] = parse_amounts("CHF 5,000")
+    assert m.currency is None and to_usd(m, RATES) is None

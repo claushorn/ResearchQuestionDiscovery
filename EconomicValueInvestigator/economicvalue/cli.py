@@ -3,7 +3,7 @@ from pathlib import Path
 import typer
 import yaml
 
-from economicvalue.assess import EVContext, assess as run_assess
+from economicvalue.assess import EVContext, assess as run_assess, problems_store
 from economicvalue.config import DEFAULT_ROOT, EVConfig, EVPaths, load_config
 from economicvalue.score import score_all
 from rqd.claude_code import make_client
@@ -41,7 +41,7 @@ def score(ctx: typer.Context):
     """Free: money already stated in each problem's sources (all problems), written to data/scores.yaml."""
     paths = EVPaths(ctx.obj)
     cfg = load_config(paths.config)
-    problems = YamlStore((paths.root / cfg.problemextractor_root).resolve() / "problems").all()
+    problems = problems_store(paths, cfg).all()
     scores = score_all(problems, cfg.currency_rates_usd, cfg.default_currency_by_source)
     paths.scores.parent.mkdir(parents=True, exist_ok=True)
     paths.scores.write_text(yaml.safe_dump(scores, sort_keys=False, allow_unicode=True), encoding="utf-8")

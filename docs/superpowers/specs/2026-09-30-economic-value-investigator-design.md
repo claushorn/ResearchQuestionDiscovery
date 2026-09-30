@@ -108,7 +108,15 @@ Lists of flat objects:
 ### 5.4 Code-side rules (estimates.py)
 1. Every `evidence` entry is fetched and quote-checked (`rqd.verify`) → `verified|quote_not_found|unfetchable`.
 2. Estimate rows are grouped by `quantity`. A basis row is **valid** if `source`/`analogous_company` →
-   its evidence number exists and is `verified`; `explicit_assumption` → non-empty `assumption`.
+   its evidence number exists, is `verified`, and **the quote contains the row's low and high figures**
+   (money: same currency; shares: a percentage or fraction; counts: the number as written; amended after the
+   final review found cited numbers were never compared with their quotes); `analogous_company` also needs a
+   named company; `explicit_assumption` → non-empty `assumption`. Values must be finite and non-negative.
+   Units cannot rescale: counts reject scale words ("thousand companies"), `frequency_per_year` must be per
+   year, `addressable_share` unit `share`/`fraction`, `cost_per_occurrence` may be per incident/occurrence but
+   not per time period, `annual_spend_per_buyer` must be per year. One unit per quantity (a per-month row is
+   rejected, not relabelled per-year). Quotes under 3 words are `quote_too_short`, never verified; quotes must
+   match on word/number boundaries (`$40` does not verify against `$400`).
 3. Status per quantity: `supported` (≥ 1 valid cited basis) · `assumption_only` (only valid assumptions)
    · otherwise the value becomes `unknown` and the rejected rows are listed in `warnings`.
    `low`/`high` of the quantity = min/max over its valid rows.
@@ -121,9 +129,11 @@ Lists of flat objects:
    addressable_share (problems bought as products, services or research programmes; added 2026-09-30 after the
    incident model stayed unknown for a research-programme problem). `potential_value` = the better-supported
    model; equal support → the range spanning both (`model: both`). Both are kept in `potential_value_models`.
-6. Amount guard: every currency amount found in the free-text answers must appear in some verified
-   evidence quote; otherwise it is listed in `warnings.unsupported_amounts`.
-7. `willingness_to_pay` entries keep only those whose evidence is verified; the rest go to warnings.
+6. Amount guard: every amount with a currency or magnitude suffix found in the free-text answers ("$ 40M",
+   "40 million dollars", "a 40M loss") must appear, currency-consistent, in some verified evidence quote;
+   otherwise it is listed in `warnings.unsupported_amounts`.
+7. `willingness_to_pay` entries keep only those whose evidence is verified **and whose signal's amounts
+   appear in that evidence's quote**; the rest go to `warnings.unverified_wtp` with the reason.
 
 ### 5.5 Record `assessments/<problem-id>.yaml` (user format)
 ```yaml
@@ -147,6 +157,8 @@ evidence: [{title, url, kind, company, quote, verification}]
 warnings: {rejected_estimates: [...], unsupported_amounts: [...], unverified_wtp: [...]}
 search: {searches, fetches, queries, sufficient}
 confidence: 0.6
+score: {...}            # the free own-data score at assessment time
+potential_value_models: {incident: <estimate>|unknown, market: <estimate>|unknown}
 assessed_with: {model, effort, answered_by, cost_usd_equivalent, output_tokens, input_tokens, turns,
                 duration_s, at, transcript}
 history: []

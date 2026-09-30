@@ -9,8 +9,8 @@ RATES = {"USD": 1.0, "EUR": 1.1}
 OK = ["verified", "verified"]
 
 
-def b(estimates=None, verification=OK, **over):
-    return build(EVOutput.model_validate(ev_output(estimates=estimates, **over)), verification, RATES)
+def b(estimates=None, verification=OK, evidence=None, **over):
+    return build(EVOutput.model_validate(ev_output(estimates=estimates, evidence=evidence, **over)), verification, RATES)
 
 
 def test_schema_is_flat():
@@ -22,11 +22,11 @@ def test_schema_is_flat():
 
 
 def test_verified_source_row_is_supported():
-    r = b([row("current_cost", 100, 200, "USD/year")])
-    cc = r["current_cost"]
-    assert (cc["low"], cc["high"], cc["unit"], cc["status"]) == (100, 200, "USD/year", "supported")
-    assert cc["basis"] == [{"type": "source", "url": "https://e.example/1", "quote": "2,000 companies deploy agents",
-                            "verification": "verified"}]
+    r = b([row("cost_per_occurrence", 40_000, 40_000, "USD", evidence=2)])
+    c = r["factors"]["cost_per_occurrence"]
+    assert (c["low"], c["high"], c["unit"], c["status"]) == (40_000, 40_000, "USD", "supported")
+    assert c["basis"] == [{"type": "source", "url": "https://e.example/2", "quote": "incidents cost us $40,000 each",
+                           "verification": "verified"}]
 
 
 def test_invalid_evidence_number_rejects_and_value_becomes_unknown():
@@ -50,9 +50,10 @@ def test_assumption_row_without_text_rejected():
 
 
 def test_mixed_rows_supported_with_min_max():
-    r = b([row("current_cost", 100, 200, "USD/year"),
-           row("current_cost", 50, 300, "USD/year", basis="explicit_assumption", evidence=0, assumption="a")])
-    assert (r["current_cost"]["low"], r["current_cost"]["high"], r["current_cost"]["status"]) == (50, 300, "supported")
+    r = b([row("cost_per_occurrence", 40_000, 40_000, "USD", evidence=2),
+           row("cost_per_occurrence", 30_000, 50_000, "USD", basis="explicit_assumption", evidence=0, assumption="a")])
+    c = r["factors"]["cost_per_occurrence"]
+    assert (c["low"], c["high"], c["status"]) == (30_000, 50_000, "supported")
 
 
 def test_analogous_company_needs_named_company():
@@ -61,7 +62,8 @@ def test_analogous_company_needs_named_company():
 
 
 def test_currency_converted_and_non_money_unit_rejected():
-    r = b([row("current_cost", 100, 100, "EUR/year"), row("failure_cost", 10, 10, "person-hours")])
+    r = b([row("current_cost", 100, 100, "EUR/year", basis="explicit_assumption", evidence=0, assumption="a"),
+           row("failure_cost", 10, 10, "person-hours", basis="explicit_assumption", evidence=0, assumption="b")])
     assert r["current_cost"]["low"] == pytest.approx(110) and r["current_cost"]["unit"] == "USD/year"
     assert r["failure_cost"] == "unknown" and "person-hours" in r["warnings"]["rejected_estimates"][0]
 
@@ -73,7 +75,7 @@ def test_share_outside_unit_interval_rejected():
 def test_potential_value_computed_by_code_with_weakest_status():
     r = b(FACTORS)
     pv = r["potential_value"]
-    assert pv["low"] == pytest.approx(1000 * 2 * 40000 * 0.05) and pv["high"] == pytest.approx(2000 * 4 * 40000 * 0.1)
+    assert pv["low"] == pytest.approx(2000 * 2 * 40000 * 0.05) and pv["high"] == pytest.approx(2000 * 4 * 40000 * 0.1)
     assert pv["unit"] == "USD/year" and pv["status"] == "assumption_only" and len(pv["basis"]) == 4
 
 
@@ -101,7 +103,7 @@ def test_willingness_to_pay_keeps_only_verified_evidence():
                                   {"signal": "rumoured budget", "evidence": 5}])
     assert r["willingness_to_pay"] == [{"signal": "Acme pays for tooling", "url": "https://e.example/2",
                                         "quote": "incidents cost us $40,000 each"}]
-    assert r["warnings"]["unverified_wtp"] == ["rumoured budget (evidence 5)"]
+    assert r["warnings"]["unverified_wtp"] == ["rumoured budget (evidence 5 not verified)"]
 
 
 from ev_testing import MARKET  # noqa: E402
@@ -110,22 +112,25 @@ from ev_testing import MARKET  # noqa: E402
 def test_market_model_computed_by_code():
     r = b(MARKET)
     m = r["potential_value_models"]["market"]
-    assert m["low"] == pytest.approx(24 * 100_000 * 0.05) and m["high"] == pytest.approx(50 * 500_000 * 0.2)
+    assert m["low"] == pytest.approx(24 * 40_000 * 0.05) and m["high"] == pytest.approx(50 * 40_000 * 0.2)
     assert m["status"] == "assumption_only" and r["potential_value_models"]["incident"] == "unknown"
     assert r["potential_value"]["model"] == "market" and r["potential_value"]["low"] == m["low"]
 
 
 def test_annual_spend_must_be_per_year():
-    rows = [MARKET[0], row("annual_spend_per_buyer", 1, 2, "USD", basis="analogous_company", evidence=2), MARKET[2]]
+    rows = [MARKET[0], row("annual_spend_per_buyer", 40_000, 40_000, "USD", basis="analogous_company", evidence=2), MARKET[2]]
     r = b(rows)
     assert r["potential_value_models"]["market"] == "unknown" and "per year" in r["warnings"]["rejected_estimates"][0]
 
 
 def test_stronger_model_wins_and_equal_support_spans_both():
-    supported_share = [row("addressable_share", 0.05, 0.2, "share", evidence=1)]
-    strong_market = MARKET[:2] + supported_share          # market: supported
-    weak_incident = FACTORS[:3]                            # incident: shares the (now supported) share, but has assumptions
-    r = b(strong_market + weak_incident)
+    supported = [row("buyer_count", 2000, 2000, "companies", evidence=1), MARKET[1],
+                 row("addressable_share", 0.5, 0.5, "share", basis="analogous_company", evidence=2)]
+    ev2 = [{"title": "Survey", "url": "https://e.example/1", "kind": "statistic", "company": "",
+            "quote": "2,000 companies deploy agents"},
+           {"title": "Acme 10-K", "url": "https://e.example/2", "kind": "filing", "company": "Acme",
+            "quote": "incidents cost us $40,000 each and 50% of them are avoidable"}]
+    r = b(supported + FACTORS[:3], evidence=ev2)          # market supported; incident has assumptions
     assert r["potential_value_models"]["market"]["status"] == "supported"
     assert r["potential_value_models"]["incident"]["status"] == "assumption_only"
     assert r["potential_value"]["model"] == "market"

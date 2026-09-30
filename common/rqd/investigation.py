@@ -1,4 +1,7 @@
 """Scaffolding shared by agent-based investigators (NoveltyInvestigator, EconomicValueInvestigator)."""
+import logging
+import time
+from typing import Callable
 from pathlib import Path
 
 from rqd.claude_code import AgentResult, ClaudeCodeClient, ToolCall
@@ -50,3 +53,21 @@ def with_history(store: YamlStore, record_id: str, record: dict, keep: tuple[str
         record = {**record, "revision": old["revision"] + 1,
                   "history": old.get("history", []) + [{k: old[k] for k in keep if k in old}]}
     return record
+
+
+def run_each(record_ids: list[str], fn: Callable[[str], str], *, log: logging.Logger, tag: str,
+             budget: float) -> dict[str, str]:
+    """Run `fn` per record (returns a one-line summary). An AgentError fails that record and the loop continues;
+    anything else (auth, usage limit) propagates and stops the command. Returns {record_id: error}."""
+    failures: dict[str, str] = {}
+    for i, rid in enumerate(record_ids, 1):
+        log.info("[%s %d/%d] %s: running (budget $%.2f) ...", tag, i, len(record_ids), rid, budget)
+        started = time.monotonic()
+        try:
+            summary = fn(rid)
+        except AgentError as e:
+            failures[rid] = str(e)
+            log.warning("[%s %d/%d] %s -> FAILED %s", tag, i, len(record_ids), rid, str(e)[:200])
+            continue
+        log.info("[%s %d/%d] %s -> %s (%.0fs)", tag, i, len(record_ids), rid, summary, time.monotonic() - started)
+    return failures

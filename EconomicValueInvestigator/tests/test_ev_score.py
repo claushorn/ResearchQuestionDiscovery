@@ -24,3 +24,8 @@ def test_score_components_from_stored_payment_signals():
 def test_problem_without_money():
     s = score_problem(problem(sources=[source("rss-x", "C", "none_stated", "")]), RATES, DEFAULTS)
     assert s["max_committed_usd"] is None and s["salary_range_usd"] is None and s["unparsed_amounts"] == []
+
+
+def test_unknown_tier_does_not_crash():
+    s = score_problem(problem(sources=[source("x", "Z", "grant", "$1M")]), RATES, DEFAULTS)
+    assert s["best_tier"] == "Z" and s["max_committed_usd"] == 1_000_000

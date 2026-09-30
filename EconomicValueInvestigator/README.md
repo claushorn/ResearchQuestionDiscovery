@@ -18,7 +18,9 @@ uv run economicvalue show <problem-id>
   could a solution be deployed, who controls the budget. It refuses problems NoveltyInvestigator marked
   `solved` unless `--force`.
 - **No invented amounts:** amounts exist only as estimates with a basis — `source` or `analogous_company`
-  (evidence page fetched and quote verified by code) or `explicit_assumption` (stated). Invalid rows are
+  (evidence page fetched, quote found on it, and the estimate's figures contained in that quote) or
+  `explicit_assumption` (stated, including any derivation). Units cannot rescale a figure. Evidence `title` and
+  `company` are labels from the model (only the quote is verified). Invalid rows are
   rejected and listed in `warnings`; a quantity without a valid basis is `unknown`.
   Potential value (USD/year) is computed by code from two models: **incident** = affected_units ×
   frequency_per_year × cost_per_occurrence × addressable_share (recurring operational problems) and **market** =

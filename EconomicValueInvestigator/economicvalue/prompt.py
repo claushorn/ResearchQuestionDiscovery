@@ -20,6 +20,7 @@ Numbers and money go only in estimates, never in the text answers unless they ar
 - source: the number of the evidence entry whose quote contains the supporting figure;
 - analogous_company: the number of an evidence entry about a comparable company (company filled in);
 - explicit_assumption: evidence 0 and the assumption written out.
+A source or analogous_company row's low and high must each appear as a number in the cited quote (money in the same currency, shares as a percentage or fraction, counts as written). A number you derive or combine (e.g. 25% of 500 companies = 125) is an explicit_assumption with the derivation written out. Units: counts as plain numbers (no "thousand"), frequency per year, addressable_share with unit "share", cost_per_occurrence per incident/occurrence (e.g. USD or USD/incident).
 If you have no basis for a number, leave it out: unknown is better than a guess. Several rows per quantity are allowed.
 The caller computes potential value from two models; give the factors of whichever fits (both if you can):
 - incident model, for recurring operational problems: affected_units x frequency_per_year x cost_per_occurrence x addressable_share;
