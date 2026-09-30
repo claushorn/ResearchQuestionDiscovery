@@ -82,3 +82,9 @@ def test_winner_beyond_ceiling_is_unclear():
 
 def test_unverified_evidence_does_not_back_a_value():
     assert c([val("winner", 0.9), CEIL], verification=["quote_not_found", "verified"])["verdict"] == "unclear"
+
+
+def test_verified_leaderboard_row_backs_the_winner():
+    ev = [{"title": "LB", "url": "https://c.example/lb", "kind": "leaderboard", "quote": "wulfebw 0.9"}]
+    h = c([val("winner", 0.9), CEIL], ev=ev, verification=["verified_row"])
+    assert h["winner"]["value"] == 0.9 and h["winner"]["basis"][0]["verification"] == "verified_row"

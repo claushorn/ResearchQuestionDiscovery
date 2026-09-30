@@ -8,7 +8,7 @@ Find, from the challenge page, its leaderboard and the winners announcement:
 - ceiling: the best possible value of the metric. Either cite a page stating it (basis source), or, for a bounded metric, give the definition (basis definition, e.g. "accuracy is at most 1.0", "error cannot be below 0"). For unbounded metrics (rewards, scores without a maximum) give a ceiling only if a page states one;
 - baseline: the organisers' baseline score, if published.
 
-Every value with basis source must cite an evidence entry (1-based number) whose verbatim quote contains that exact number. evidence: pages you opened with WebFetch, with a verbatim quote of at most 40 words copied character for character (never from a search snippet, no ellipses). Run at least {min_searches} WebSearch. Leave out values you cannot back; do not compute the headroom yourself. confidence: your probability that the values are right."""
+Every value with basis source must cite an evidence entry (1-based number) whose verbatim quote contains that exact number. For a table (a leaderboard or a results table in a paper), quote the row as it appears: the participant or team name followed by the score cell(s) exactly as shown, e.g. "pranav_devarinti 19.369". evidence: pages you opened with WebFetch, with a verbatim quote of at most 40 words copied character for character (never from a search snippet, no ellipses). Run at least {min_searches} WebSearch. Leave out values you cannot back; do not compute the headroom yourself. confidence: your probability that the values are right."""
 
 INVESTIGATE_PROMPT = """You look for a way to BEAT the best solution of a finished challenge that still has headroom.
 

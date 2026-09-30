@@ -28,3 +28,23 @@ def test_wording_must_still_match_exactly():
 def test_quote_must_end_at_a_word_or_number_boundary():
     assert not quote_in_text("costs $40.", "the fix costs $400 per unit")
     assert quote_in_text("costs $400.", "the fix costs $400 per unit")
+
+
+def test_markdown_emphasis_is_ignored():
+    # measured: the agent quoted a README's markdown source "**log loss**"; the page renders "log loss"
+    assert quote_in_text("The evaluation metric is **log loss**, which rewards", "The evaluation metric is log loss, which rewards")
+
+
+TABLE = """<table><tr><th>#</th><th>Participants</th><th>ACPL</th><th>Win Rate (%)</th></tr>
+<tr><td>01</td><td>pranav_devarinti</td><td>19.369</td><td>97.000</td></tr>
+<tr><td>02</td><td>ivanchuks_fluffy_cat</td><td>23.495</td><td>90.000</td></tr></table>"""
+
+
+def test_leaderboard_row_numbers_must_share_one_row():
+    from rqd.quotes import row_in_html
+    assert row_in_html("pranav_devarinti 19.369", TABLE)
+    assert row_in_html("ACPL: 19.369 | Win Rate: 97.0%", TABLE)           # header words + one row's numbers
+    assert not row_in_html("pranav_devarinti 23.495", TABLE)              # a neighbouring row's score
+    assert not row_in_html("pranav_devarinti 19.37", TABLE)               # numbers must match exactly
+    assert not row_in_html("pranav_devarinti", TABLE)                     # a row quote needs a number
+    assert not row_in_html("champion 19.369", TABLE)                      # no quote word in the row or header

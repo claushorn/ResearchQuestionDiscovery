@@ -11,7 +11,7 @@ _WORDS = {"dollar": "USD", "dollars": "USD", "pound": "GBP", "pounds": "GBP", "e
 _SCALE = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "billion": 1e9}
 _TOKEN = re.compile(
     r"(?P<pre>[$£€]\s?|\b(?:USD|GBP|EUR)\s?)?"
-    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?)"
+    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
     r"(?P<pct>\s?(?:%|percent\b))?"
     r"(?:\s?(?P<suf>k|mn|m|million|bn|b|billion)\b)?"
     r"(?:\s?(?P<post>USD|GBP|EUR|dollars?|pounds?|euros?)\b)?", re.IGNORECASE)
@@ -47,7 +47,9 @@ def _tokens(text: str) -> list[_Tok]:
         if post:
             currency = currency or _WORDS.get(post.lower(), post.upper())
         grouped = "," in num or num.count(".") >= 2
-        value = float(num.replace(",", "") if "," in num else (num.replace(".", "") if num.count(".") >= 2 else num))
+        value = float(num.replace(",", "") if "," in num else (num.replace(".", "") if num.count(".") >= 2 else num))  # 3.7e-10 ok
+        if suf and ("e" in num or "E" in num):
+            suf = None  # "3.7e-10 M" is molar, not million: no magnitude suffix on scientific notation
         out.append(_Tok(value, _SCALE[suf.lower()] if suf else 1.0, currency, bool(currency or suf or grouped),
                         bool(m.group("pct")), m.start(), m.end()))
     return out

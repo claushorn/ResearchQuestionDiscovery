@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from challengeinvestigator.config import CIConfig, CIPaths
-from challengeinvestigator.headroom import _stated, compute
+from challengeinvestigator.headroom import VERIFIED, _stated, compute
 from challengeinvestigator.prompt import HEADROOM_PROMPT, INVESTIGATE_PROMPT, render_challenge
 from challengeinvestigator.schema import HEADROOM_SCHEMA, INVESTIGATE_SCHEMA, HeadroomOutput, InvestigateOutput
 from rqd.claude_code import ClaudeCodeClient
@@ -60,7 +60,8 @@ def _session(ctx: CIContext, record_id: str, agent: AgentCfg, prompt: str, user:
         out = model_cls.model_validate(res.structured_output)
     except ValidationError as e:
         raise AgentError(f"schema: {e.errors()[:3]}", res.transcript) from e
-    verification = [verify_work(ctx.fetcher, e.url, e.quote) for e in out.evidence]
+    # table rows (leaderboards, result tables in papers) verify structurally: numbers share one <tr> with a quote word
+    verification = [verify_work(ctx.fetcher, e.url, e.quote, table=True) for e in out.evidence]
     meta = {"search": search_summary(res.tool_calls, agent.min_searches),
             "run": run_info(res, model=agent.model, effort=agent.effort, transcript=transcript)}
     return out, verification, meta
@@ -117,7 +118,7 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
     warnings = {"dropped_solutions": [], "dropped_scores": [], "unsupported_numbers": []}
     solutions = []
     for s in out.solutions:
-        if not (1 <= s.evidence <= len(out.evidence) and verification[s.evidence - 1] == "verified"):
+        if not (1 <= s.evidence <= len(out.evidence) and verification[s.evidence - 1] in VERIFIED):
             warnings["dropped_solutions"].append(f"{s.team} ({s.title}): evidence {s.evidence} not verified")
             continue
         entry = s.model_dump()
@@ -125,7 +126,7 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
             warnings["dropped_scores"].append(f"{s.team}: {s.score:g} not in evidence {s.evidence}'s quote")
             entry["score"] = None
         solutions.append(entry)
-    quotes = [e.quote for e, v in zip(out.evidence, verification) if v == "verified"]
+    quotes = [e.quote for e, v in zip(out.evidence, verification) if v in VERIFIED]
     texts = [("summary", out.summary)] + [(f"solutions[{i}].approach", s.approach) for i, s in enumerate(out.solutions, 1)]
     for i, idea in enumerate(out.ideas, 1):
         texts += [(f"ideas[{i}].{f}", getattr(idea, f)) for f in ("idea", "builds_on", "why_it_could_win", "risks")]

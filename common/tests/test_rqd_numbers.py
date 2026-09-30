@@ -66,3 +66,10 @@ def test_numbers_in_text_finds_decimals_and_percentages_not_ranks_or_years():
 ])
 def test_figure_in_quote(value, quote, kind, ok):
     assert figure_in_quote(value, quote, kind) is ok
+
+
+def test_scientific_notation_is_read():
+    # measured: Proteinbase reports binding affinities as "KD: 3.7e-10 M"
+    assert figure_in_quote(3.7e-10, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)
+    assert figure_in_quote(1.4e-9, "🥇 Nick Boyd (KD: 1.4e-9 M)", None)
+    assert not figure_in_quote(3.7, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)

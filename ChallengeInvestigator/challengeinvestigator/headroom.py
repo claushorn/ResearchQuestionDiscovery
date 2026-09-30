@@ -5,6 +5,8 @@ import math
 from challengeinvestigator.schema import HeadroomOutput, Value
 from rqd.numbers import figure_in_quote
 
+VERIFIED = ("verified", "verified_row")  # verified_row: a leaderboard row, numbers in one <tr>
+
 
 def _stated(value: float, quote: str) -> bool:
     """A score may be quoted as a plain number or a percentage (0.871 or 87.1 for '87.1%')."""
@@ -24,11 +26,12 @@ def _check(v: Value, out: HeadroomOutput, verification: list[str]) -> dict:
     if not 1 <= v.evidence <= len(out.evidence):
         raise ValueError(f"cites evidence {v.evidence}, which does not exist")
     ev = out.evidence[v.evidence - 1]
-    if verification[v.evidence - 1] != "verified":
-        raise ValueError(f"evidence {v.evidence} is {verification[v.evidence - 1]}")
+    status = verification[v.evidence - 1]
+    if status not in VERIFIED:
+        raise ValueError(f"evidence {v.evidence} is {status}")
     if not _stated(v.value, ev.quote):
         raise ValueError(f"{v.value:g} not in evidence {v.evidence}'s quote")
-    return {"type": "source", "url": ev.url, "quote": ev.quote, "verification": "verified"}
+    return {"type": "source", "url": ev.url, "quote": ev.quote, "verification": status}
 
 
 def compute(out: HeadroomOutput, verification: list[str], threshold: float) -> dict:
