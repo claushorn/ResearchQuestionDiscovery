@@ -92,9 +92,9 @@ category id from `sources.yaml` (validated at load; unknown id → error).
 - id: sbir-topics
   name: SBIR.gov open topics
   category: gov_solicitation
-  kind: sbir               # adapter
-  url: https://api.www.sbir.gov/public/api/solicitations
-  params: {open: 1}
+  kind: html_list          # adapter
+  url: https://www.sbir.gov/topics?status=1
+  params: {link_selector: 'a[href^="/topics/"]'}
   cadence_hours: 24
   status: active           # active | candidate | retired
   provenance: seeded       # seeded | discovered_from:<item-id>
@@ -116,9 +116,14 @@ One class per `kind`, interface
 |---|---|
 | `rss` | engineering blogs, funder news feeds, any RSS/Atom |
 | `greenhouse`, `lever`, `ashby` | public job-board JSON endpoints |
-| `sbir` | SBIR/STTR topics API |
-| `grants_gov` | grants.gov search API |
-| `html_list` | listing page + CSS selector for item links, then fetch each item page (challenge platforms, ARPA-H, ARIA, YC RFS, workshop CFPs) |
+| `grants_gov` | grants.gov `search2` + `fetchOpportunity` APIs |
+| `html_list` | listing page + CSS selector for item links, then fetch each unseen item page (SBIR topics, challenge platforms, ARPA-H, ARIA, workshop CFPs) |
+| `page` | one page = one item (YC RFS, single CFP pages) |
+
+The SBIR.gov public API returned HTTP 403 on 2026-09-30; SBIR topics are scanned
+from the static `sbir.gov/topics` listing via `html_list`. Every kind accepts
+`title_include` / `title_exclude` regex params (deterministic pre-filter, e.g.
+to skip non-research job ads before any LLM call).
 
 Common HTTP layer: one shared client with a descriptive User-Agent,
 robots.txt check, per-host rate limit, timeout, and HTML→text conversion.
@@ -155,10 +160,13 @@ The store holds item state only; candidate records live only in YAML (§3.6).
 does not analyse, estimate value, or speculate. Enforced by:
 
 1. Prompt: extract only what is stated; no assessments beyond one sentence.
-2. Schema length limits: `candidate_problem.statement` ≤ 60 words,
+2. Length limits: `candidate_problem.statement` ≤ 60 words,
    `why_interesting` ≤ 1 sentence (≤ 30 words), `evidence` quotes ≤ 50 words
-   each, ≤ 2 quotes, `technical_area` ≤ 3 tags.
-3. At most 3 candidates per item.
+   each, ≤ 2 quotes, `technical_area` ≤ 3 tags. Structured outputs cannot
+   express length constraints, so word limits are instructed in the prompt and
+   **reported** per candidate (`length_violations`); count caps are enforced by
+   Pydantic on the client.
+3. At most 3 candidates per item (validation failure otherwise).
 4. `max_tokens = 4000` per request (hard stop against runaway output), and the run report
    shows `output_tokens / candidates` per source. A run whose mean exceeds 500
    is reported as a budget violation (the numbers are shown, not hidden).
@@ -170,6 +178,10 @@ budget holds.
 **Evidence verification.** Every quote is checked (whitespace-normalised
 substring match) against the item text. Unmatched → the candidate is written
 with `evidence_verified: false`; it is never silently accepted or dropped.
+
+**Batch resume.** Submitted items are marked `submitted` with their batch id;
+the next `extract --batch` first collects any such batch (expired/canceled
+items return to `pending`), so an interrupted wait loses nothing.
 
 **Errors.** Per-item API refusal or schema failure → `extract_status: failed`
 with the error, listed in the run report. Auth/config errors raise a typed
@@ -203,17 +215,20 @@ extracted_with: {model, run_id, output_tokens}
 
 ### 3.7 Registry maintenance (`discover`)
 
-- Input: `referenced_urls` of new candidates plus outbound links of new items.
+- Input: `referenced_urls` of recent candidates (job-board patterns and feed
+  autodiscovery) plus outbound links of newly seen items (job-board patterns
+  only; no fetching).
 - Deterministic detection only: RSS/Atom autodiscovery
   (`<link rel="alternate">`), Greenhouse/Lever/Ashby URL patterns, and domains
   matching an `html_list` pattern already in the registry.
 - New sources are added as `status: candidate`, `provenance: discovered_from:<item-id>`,
   mapped to a category; unmappable ones go to `SourceScout/discovered_unmapped.yaml`
   for manual review, not guessed.
-- Promotion: `candidate → active` after ≥ 1 candidate within its first
-  `N = 5` scans. Retirement: `→ retired` after `K = 5` consecutive fetch
-  failures, or 0 candidates over the last 20 scans (active) / 5 scans
-  (candidate). Every transition is logged in the run report. N, K are config.
+- Promotion: `candidate → active` on its first candidate; retired if none
+  within its first `promote_within_scans = 5` scans. Active sources are retired
+  after `max_consecutive_failures = 5` failed fetches or
+  `retire_zero_yield_active = 20` scans without a candidate. Every transition
+  is logged in the run report; all three numbers are in `config.yaml`.
 
 ### 3.8 CLI
 
@@ -234,7 +249,9 @@ A cron job or a later agent skill wraps `run`.
   parse errors of a feed) → recorded in `health`, listed in the report; run
   continues.
 - Internal/deterministic failures (invalid registry/config, unknown category,
-  missing API credentials, schema mismatch) → typed exceptions
+  missing API credentials — checked up front because the SDK otherwise fails
+  with a bare `TypeError` at the first request, schema mismatch, API
+  authentication/permission/400 errors) → typed exceptions
   (`RegistryError`, `ConfigError`, `ExtractionConfigError`); the CLI catches
   them and prints a clean message + fix, exit code 1, no traceback.
   Unexpected exceptions propagate with traceback.
