@@ -9,3 +9,13 @@ ProblemExtractor/data/
 NoveltyInvestigator/data/
 EconomicValueInvestigator/data/
 ChallengeInvestigator/data/
+personal_profile/
+PersonalFitInvestigator/data/
+OpportunityGenerator/data/
+# fit / opportunity records and briefs quote the private profile verbatim (public repository)
+PersonalFitInvestigator/fits/*
+!PersonalFitInvestigator/fits/.gitkeep
+OpportunityGenerator/opportunities/*
+!OpportunityGenerator/opportunities/.gitkeep
+OpportunityGenerator/briefs/*
+!OpportunityGenerator/briefs/.gitkeep

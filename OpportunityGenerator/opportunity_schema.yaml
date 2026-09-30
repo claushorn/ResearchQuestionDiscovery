@@ -1,0 +1,26 @@
+# One opportunity per problem: OpportunityGenerator/opportunities/OPP-NNNN.yaml (replaces the earlier draft
+# opportunities/research_opportunity_schema.yaml). Brief: OpportunityGenerator/briefs/OPP-NNNN.md.
+id: OPP-0042                         # stable per problem
+problem_id: prob-…
+revision: 1
+title: "Can X be learned despite Y?"
+opportunity_profile:                 # not collapsed into one score
+  novelty: 8                         # /10, null when the novelty check is missing or unclear
+  economic_value: 7                  # /10, null when economic value was not assessed
+  tractability: 5
+  personal_advantage: 9              # copied from the fit (after its caps)
+  asymmetric_upside: high            # low | medium | high
+  likely_engagement: {consulting: high, research: high, startup: medium, employment: low}
+reasoning: {novelty: ..., economic_value: ..., tractability: ..., asymmetric_upside: ...}
+confidence: {novelty: 0.71, value: 0.63, tractability: 0.58, fit: 0.91}   # each stage's own; null when missing
+thesis: ...                          # why this could be worth spending 10 hours investigating
+recommendation: investigate | contact | ignore      # decided by code (config thresholds); the model cannot lift ignore
+recommendation_reason: ...
+brief_sections: {why_unsolved, current_best_approach, what_we_could_test, first_experiment, first_experiment_hours,
+                 first_experiment_compute_usd, if_successful, if_failed}     # hours / $ are assumptions
+inputs: {problem_revision, fit_revision, fit_profile_digest, novelty_revision, ev_revision}   # for staleness
+evidence: [{title, url, quote, verification}]
+warnings: {unverified_evidence: [...], unsupported_numbers: [...], unsupported_amounts: [...]}
+search: {searches, fetches, queries, sufficient}
+run: {model, effort, answered_by, cost_usd_equivalent, ..., transcript}
+history: []

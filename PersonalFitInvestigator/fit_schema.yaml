@@ -1,0 +1,14 @@
+# One fit per problem: PersonalFitInvestigator/fits/<problem_id>.yaml
+problem_id: prob-…
+revision: 1
+problem_revision: 1                # the ProblemExtractor revision assessed
+profile_digest: 3f5a…              # SHA-256 over the profile files: another digest = stale
+advantages:                        # only those whose quote was found in the cited profile file
+  - {claim: ..., file: CV_2025.pdf, quote: "<verbatim from that file>", why_ml_researcher_lacks_it: ...,
+     basis: profile | self_rating}
+gaps: [{gap: ..., how_to_close: ...}]
+interest_match: {level: high | medium | low | none, quote: "<verbatim interest line>"}
+personal_advantage: {score: 8, stated_by_model: 8, reasoning: ..., confidence: 0.7}   # score after the caps
+warnings: [...]
+run: {model, effort, answered_by, cost_usd_equivalent, input_tokens, output_tokens, turns, duration_s, at, transcript}
+history: []
