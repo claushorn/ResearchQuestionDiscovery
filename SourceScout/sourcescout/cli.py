@@ -1,4 +1,7 @@
+import fcntl
 import functools
+import logging
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -54,10 +57,39 @@ def clean_errors(fn):
     return wrapper
 
 
+def exclusive(fn):
+    """One mutating sourcescout command per SourceScout directory at a time (store, registry, API usage)."""
+    @functools.wraps(fn)
+    def wrapper(ctx: typer.Context, *args, **kwargs):
+        lock_path = Paths(ctx.obj).root / "data" / "run.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(lock_path, "w") as lock:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as e:
+                raise ScoutError("another sourcescout command is running on this directory",
+                                 fix="Wait for it to finish (or stop it), then run again") from e
+            return fn(ctx, *args, **kwargs)
+    return wrapper
+
+
 @app.callback()
 def main(ctx: typer.Context, root: Path = typer.Option(DEFAULT_ROOT, "--root", help="SourceScout directory")):
     load_dotenv(root.parent / ".env", override=False)  # repo-root .env holds ANTHROPIC_API_KEY
+    _progress_to_stderr()
     ctx.obj = root
+
+
+def _progress_to_stderr() -> None:
+    """Progress lines (scan per source, extract per item, batch polls) go to stderr; the report to stdout."""
+    logger = logging.getLogger("sourcescout")
+    logger.setLevel(logging.INFO)
+    for h in [h for h in logger.handlers if getattr(h, "_sourcescout_cli", False)]:
+        logger.removeHandler(h)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s", datefmt="%H:%M:%S"))
+    handler._sourcescout_cli = True
+    logger.addHandler(handler)
 
 
 def _finish(env: Env, report: RunReport) -> None:
@@ -89,6 +121,7 @@ def _discover(env: Env, report: RunReport, since: datetime) -> None:
 
 @app.command()
 @clean_errors
+@exclusive
 def scan(ctx: typer.Context, source: str = typer.Option(None, help="Scan only this source id"),
          category: str = typer.Option(None), tier: str = typer.Option(None),
          force: bool = typer.Option(False, help="Ignore cadence")):
@@ -101,6 +134,7 @@ def scan(ctx: typer.Context, source: str = typer.Option(None, help="Scan only th
 
 @app.command()
 @clean_errors
+@exclusive
 def extract(ctx: typer.Context, batch: bool = typer.Option(None, "--batch/--sync", help="Default: batch for backend api, sync for claude_code"),
             limit: int = typer.Option(None, help="Max items to extract"),
             retry_failed: bool = typer.Option(False, "--retry-failed", help="Return failed items to pending first")):
@@ -117,6 +151,7 @@ def extract(ctx: typer.Context, batch: bool = typer.Option(None, "--batch/--sync
 
 @app.command()
 @clean_errors
+@exclusive
 def discover(ctx: typer.Context, days: float = typer.Option(1.0, help="Look back this many days")):
     """Propose new sources from recent items and candidates."""
     env, now = _env(ctx.obj), utcnow()
@@ -127,6 +162,7 @@ def discover(ctx: typer.Context, days: float = typer.Option(1.0, help="Look back
 
 @app.command()
 @clean_errors
+@exclusive
 def run(ctx: typer.Context, batch: bool = typer.Option(None, "--batch/--sync", help="Default: batch for backend api, sync for claude_code"),
         limit: int = typer.Option(None, help="Max items to extract")):
     """scan -> extract -> discover -> lifecycle -> report."""
@@ -190,11 +226,13 @@ def _set_status(root: Path, source_id: str, status: str) -> None:
 
 @sources_app.command("promote")
 @clean_errors
+@exclusive
 def sources_promote(ctx: typer.Context, source_id: str):
     _set_status(ctx.obj, source_id, "active")
 
 
 @sources_app.command("retire")
 @clean_errors
+@exclusive
 def sources_retire(ctx: typer.Context, source_id: str):
     _set_status(ctx.obj, source_id, "retired")

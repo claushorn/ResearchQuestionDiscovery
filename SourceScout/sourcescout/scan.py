@@ -1,4 +1,6 @@
+import logging
 import re
+import time
 from datetime import datetime
 
 from sourcescout.adapters import KINDS, RawItem
@@ -8,6 +10,8 @@ from sourcescout.registry import Health, Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.store import Store
 from sourcescout.timeutil import iso
+
+log = logging.getLogger("sourcescout")
 
 
 def title_filter(source: Source, items: list[RawItem], job_title_include: str | None = None) -> tuple[list[RawItem], int]:
@@ -23,7 +27,11 @@ def scan(registry: Registry, store: Store, http: Fetcher, report: RunReport, *, 
          max_item_chars: int, job_title_include: str | None = None, source_id: str | None = None, category: str | None = None,
          tier: str | None = None, force: bool = False) -> None:
     now_s = iso(now)
-    for source in registry.scannable(now, source_id=source_id, category=category, tier=tier, force=force):
+    sources = registry.scannable(now, source_id=source_id, category=category, tier=tier, force=force)
+    log.info("scanning %d due sources", len(sources))
+    for i, source in enumerate(sources, 1):
+        log.info("[scan %d/%d] %s (%s) ...", i, len(sources), source.id, source.kind)
+        started = time.monotonic()
         stat = report.scan_stat(source.id)
         source.last_scanned = now_s  # attempt time: a failing source is retried on its cadence, not every run
         item_errors: list[str] = []
@@ -33,6 +41,8 @@ def scan(registry: Registry, store: Store, http: Fetcher, report: RunReport, *, 
             stat.error = str(e)
             source.health.consecutive_failures += 1
             source.health.last_error = str(e)
+            log.warning("    %s: FAILED %s (%.1fs)", source.id, e, time.monotonic() - started)
+            registry.save()  # per source: an interrupted scan keeps what it finished
             continue
         stat.item_errors = len(item_errors)
         report.failures += [{"source_id": source.id, "item_id": "-", "error": f"item fetch: {e}"} for e in item_errors]
@@ -46,4 +56,6 @@ def scan(registry: Registry, store: Store, http: Fetcher, report: RunReport, *, 
         source.yield_.items_seen += len(items)
         if stat.new or stat.changed:  # zero-yield counts scans that gave the extractor something new
             source.yield_.scans_since_candidate += 1
-    registry.save()
+        log.info("    %s: %d new, %d changed, %d unchanged, %d filtered, %d item errors (%.1fs)", source.id, stat.new,
+                 stat.changed, stat.unchanged, stat.filtered, stat.item_errors, time.monotonic() - started)
+        registry.save()

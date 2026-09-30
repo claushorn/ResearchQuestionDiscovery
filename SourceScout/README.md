@@ -25,6 +25,12 @@ uv run sourcescout report               # latest run report
 uv run sourcescout extract --retry-failed  # return failed items to pending
 ```
 
+## Progress and re-runs
+Progress goes to stderr (one line per source while scanning, one per item while extracting, batch polls);
+the report goes to stdout. Re-running is incremental: sources within their cadence are not fetched,
+unchanged items are not re-extracted, and `--limit N` leaves the rest `pending` for the next run.
+Only one mutating command runs per SourceScout directory at a time (`data/run.lock`).
+
 ## Source kinds
 `rss` (params: `max_items`, `fetch_full`), `greenhouse`, `lever`, `ashby`, `grants_gov` (`keyword`, `rows`,
 `opp_statuses`), `html_list` (`link_selector`, `link_pattern`, `max_items`, `content_selector`),
