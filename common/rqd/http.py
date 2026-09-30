@@ -1,9 +1,11 @@
+import io
 import re
 import time
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
+from pypdf import PdfReader
 from selectolax.parser import HTMLParser
 
 from rqd.config import HttpCfg
@@ -28,6 +30,11 @@ def html_to_text(html: str, base_url: str = "") -> tuple[str, list[str]]:
     raw = root.text(separator="\n") if root is not None else ""
     lines = (re.sub(r"[ \t ]+", " ", line).strip() for line in raw.splitlines())
     return "\n".join(line for line in lines if line), list(dict.fromkeys(links))
+
+
+def pdf_to_text(data: bytes) -> str:
+    """Text of all pages of a PDF (for verifying quotes from papers served as PDF)."""
+    return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
 
 
 class Fetcher:

@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 
-_DROP = {"title", "default", "maxLength", "minLength", "maxItems", "minItems"}
+_DROP = {"title", "default", "maxLength", "minLength", "maxItems", "minItems", "minimum", "maximum",
+         "exclusiveMinimum", "exclusiveMaximum"}
 
 
 def _sanitize(node):
