@@ -103,3 +103,13 @@ def test_item_errors_are_recorded_in_report(paths):
     report = run_scan(reg, Store(paths.db), routes)
     assert report.scan["l"].new == 1 and report.scan["l"].item_errors == 1 and report.scan["l"].error is None
     assert any("s.example/1" in f["error"] for f in report.failures)
+
+
+def test_scan_counts_finished_items_and_does_not_queue_them(paths):
+    reg = make_registry(paths, [{"id": "c", "name": "c", "category": "challenge_platform", "kind": "html_list",
+                                 "url": "https://c.example/l", "params": {"link_selector": "a", "finished_link_text": "(?i)ended"}}])
+    routes = {"GET https://c.example/l": '<a href="/1">Open one</a><a href="/2">Ended one</a>',
+              "GET https://c.example/1": "<html><body>open</body></html>", "GET https://c.example/2": "<html><body>old</body></html>"}
+    store = Store(paths.db)
+    report = run_scan(reg, store, routes)
+    assert report.scan["c"].new == 2 and report.scan["c"].finished == 1 and len(store.pending()) == 1

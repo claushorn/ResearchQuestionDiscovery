@@ -14,6 +14,8 @@ class RawItem:
     published: str | None
     text: str
     links: tuple[str, ...] = ()
+    finished: bool = False     # the listing marks it finished (ended challenge): stored, never extracted
+    status_only: bool = False  # already-known item whose only news is the finished flag (page not refetched)
 
 
 IsKnown = Callable[[str], bool]

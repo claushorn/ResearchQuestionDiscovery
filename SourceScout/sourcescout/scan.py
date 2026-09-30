@@ -47,6 +47,10 @@ def scan(registry: Registry, store: Store, http: Fetcher, report: RunReport, *, 
         stat.item_errors = len(item_errors)
         report.failures += [{"source_id": source.id, "item_id": "-", "error": f"item fetch: {e}"} for e in item_errors]
         items, stat.filtered = title_filter(source, items, job_title_include)
+        stat.finished = sum(i.finished for i in items)
+        for item in [i for i in items if i.status_only]:
+            store.mark_finished(item.url)
+        items = [i for i in items if not i.status_only]
         for item in items:
             status, truncated = store.upsert(item, now_s, max_item_chars)
             setattr(stat, status, getattr(stat, status) + 1)

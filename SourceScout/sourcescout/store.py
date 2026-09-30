@@ -22,9 +22,10 @@ CREATE TABLE IF NOT EXISTS items (
   revision INTEGER NOT NULL,
   first_seen TEXT NOT NULL,
   last_seen TEXT NOT NULL,
-  extract_status TEXT NOT NULL,   -- pending | submitted | done | failed
+  extract_status TEXT NOT NULL,   -- pending | submitted | done | failed | finished (never extracted)
   extract_error TEXT,
-  batch_id TEXT
+  batch_id TEXT,
+  finished INTEGER NOT NULL DEFAULT 0  -- the source's listing marks it finished (e.g. an ended challenge)
 );
 CREATE INDEX IF NOT EXISTS idx_items_status ON items(extract_status);
 """
@@ -56,11 +57,13 @@ class StoredItem:
     truncated: bool
     extract_status: str
     batch_id: str | None
+    finished: bool = False
 
 
 def _row(r: sqlite3.Row) -> StoredItem:
     return StoredItem(r["item_id"], r["source_id"], r["url"], r["title"], r["published"], r["text"],
-                      json.loads(r["links"]), r["revision"], bool(r["truncated"]), r["extract_status"], r["batch_id"])
+                      json.loads(r["links"]), r["revision"], bool(r["truncated"]), r["extract_status"], r["batch_id"],
+                      bool(r["finished"]))
 
 
 class Store:
@@ -69,6 +72,10 @@ class Store:
         self._db = sqlite3.connect(path)
         self._db.row_factory = sqlite3.Row
         self._db.executescript(_SCHEMA)
+        columns = {r["name"] for r in self._db.execute("PRAGMA table_info(items)")}
+        if "finished" not in columns:  # schema migration for stores created before the finished flag
+            with self._db:
+                self._db.execute("ALTER TABLE items ADD COLUMN finished INTEGER NOT NULL DEFAULT 0")
 
     def is_known(self, url: str) -> bool:
         return self._db.execute("SELECT 1 FROM items WHERE item_id=?", (item_id_for(url),)).fetchone() is not None
@@ -80,22 +87,35 @@ class Store:
         iid = item_id_for(item.url)
         row = self._db.execute("SELECT content_hash FROM items WHERE item_id=?", (iid,)).fetchone()
         links = json.dumps(list(item.links))
+        queued = "finished" if item.finished else "pending"  # finished items are kept but never extracted
         with self._db:
             if row is None:
                 self._db.execute(
-                    "INSERT INTO items VALUES (?,?,?,?,?,?,?,?,?,1,?,?,'pending',NULL,NULL)",
+                    "INSERT INTO items VALUES (?,?,?,?,?,?,?,?,?,1,?,?,?,NULL,NULL,?)",
                     (iid, item.source_id, item.url, item.title, item.published, digest, text, links,
-                     int(truncated), now, now))
+                     int(truncated), now, now, queued, int(item.finished)))
                 return "new", truncated
             if row["content_hash"] != digest:
                 self._db.execute(
                     "UPDATE items SET title=?, published=?, content_hash=?, text=?, links=?, truncated=?, "
-                    "revision=revision+1, last_seen=?, extract_status='pending', extract_error=NULL, batch_id=NULL "
+                    "revision=revision+1, last_seen=?, extract_status=?, extract_error=NULL, batch_id=NULL, finished=? "
                     "WHERE item_id=?",
-                    (item.title, item.published, digest, text, links, int(truncated), now, iid))
+                    (item.title, item.published, digest, text, links, int(truncated), now, queued, int(item.finished), iid))
                 return "changed", truncated
             self._db.execute("UPDATE items SET last_seen=? WHERE item_id=?", (now, iid))
+            if item.finished:
+                self._mark_finished(iid)
             return "unchanged", truncated
+
+    def _mark_finished(self, iid: str) -> None:
+        self._db.execute("UPDATE items SET finished=1, extract_status=CASE WHEN extract_status='pending' "
+                         "THEN 'finished' ELSE extract_status END WHERE item_id=?", (iid,))
+
+    def mark_finished(self, url: str) -> None:
+        """The listing now marks a known item finished: it leaves the extraction queue (done items keep their
+        candidates, which ProblemExtractor skips)."""
+        with self._db:
+            self._mark_finished(item_id_for(url))
 
     def pending(self, limit: int | None = None) -> list[StoredItem]:
         rows = self._db.execute(

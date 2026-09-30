@@ -14,6 +14,7 @@ class ScanStat:
     filtered: int = 0
     truncated: int = 0
     item_errors: int = 0
+    finished: int = 0
     error: str | None = None
 
 
@@ -87,10 +88,10 @@ class RunReport:
 
     def render(self, budget: int) -> str:
         lines = [f"Run {self.run_id} (started {self.started})", "", "SCAN"]
-        lines.append(f"  {'source':32} {'new':>4} {'chg':>4} {'same':>5} {'filt':>5} {'trunc':>5} {'itemerr':>7}  error")
+        lines.append(f"  {'source':32} {'new':>4} {'chg':>4} {'same':>5} {'filt':>5} {'trunc':>5} {'itemerr':>7} {'finished':>8}  error")
         for sid, s in sorted(self.scan.items()):
             lines.append(f"  {sid:32} {s.new:>4} {s.changed:>4} {s.unchanged:>5} {s.filtered:>5} {s.truncated:>5} "
-                         f"{s.item_errors:>7}  {s.error or ''}")
+                         f"{s.item_errors:>7} {s.finished:>8}  {s.error or ''}")
         lines += ["", "EXTRACT"]
         lines.append(f"  {'source':32} {'items':>5} {'fail':>4} {'cand':>4} {'out_tok':>8} {'tok/cand':>8} "
                      f"{'empty_tok':>9} {'cache_rd':>8} {'unverif':>7} {'len_viol':>8}")

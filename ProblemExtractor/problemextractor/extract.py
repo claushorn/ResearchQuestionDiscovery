@@ -56,6 +56,7 @@ class PERunReport:
     input_tokens: int = 0
     invalid_merges: list[str] = field(default_factory=list)
     superseded: list[str] = field(default_factory=list)  # candidate's item was re-extracted by SourceScout
+    finished: list[str] = field(default_factory=list)  # the source marks it finished (e.g. an ended challenge)
     failures: list[str] = field(default_factory=list)
 
     def tokens_per_candidate(self) -> float | None:
@@ -77,7 +78,9 @@ class PERunReport:
                  + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (limit {budget})")]
         for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges),
                                ("SUPERSEDED (item has a newer revision; its newer candidates are processed instead)",
-                                self.superseded), ("FAILURES", self.failures)]:
+                                self.superseded),
+                               ("FINISHED (source marks it finished, e.g. ended challenge; kept in SourceScout, not a problem)",
+                                self.finished), ("FAILURES", self.failures)]:
             lines += ["", f"{title}: {len(entries)}"] + [f"  {x}" for x in entries]
         return "\n".join(lines)
 
@@ -144,11 +147,15 @@ def build_params(ctx: PEContext, candidate: dict, item_text: str, shortlisted: l
 
 
 def process(ctx: PEContext, client, candidate: dict) -> str:
-    """Returns the outcome: 'new', 'merged' or 'superseded'."""
+    """Returns the outcome: 'new', 'merged', 'superseded' or 'finished'."""
     cid = candidate["candidate_id"]
     item = ctx.ss_store.get(candidate["item_id"])
     if item is None:
         raise ItemExtractionError(f"source item {candidate['item_id']} is not in the SourceScout store")
+    if item.finished:
+        ctx.state.record(cid, "", "finished", iso(utcnow()))
+        ctx.report.finished.append(cid)
+        return "finished"
     if item.revision != candidate["revision"]:  # the store only holds the latest text; never extract from another
         ctx.state.record(cid, "", "superseded", iso(utcnow()))
         ctx.report.superseded.append(cid)
@@ -199,6 +206,6 @@ def run_extraction(ctx: PEContext, client, limit: int | None = None) -> None:
             ctx.report.failures.append(f"{c['candidate_id']}: {e}")
             log.warning("[pe %d/%d] %s -> FAILED %s", i, len(candidates), c["candidate_id"], str(e)[:200])
             continue
-        ctx.report.processed += outcome != "superseded"
+        ctx.report.processed += outcome in ("new", "merged")
         log.info("[pe %d/%d] %s (%s) -> %s (%.1fs)", i, len(candidates), c["candidate_id"], c["source_id"],
                  outcome, time.monotonic() - started)

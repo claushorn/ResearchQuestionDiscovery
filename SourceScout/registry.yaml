@@ -64,7 +64,7 @@ sources:
     link_selector: a[href^="/competitions/"]
     link_pattern: /competitions/\d+/[^/]+/?$
     max_items: 20
-    stop_at_heading: (?i)completed competitions
+    finished_after_heading: (?i)completed competitions
 - id: aicrowd
   name: AIcrowd challenges
   category: challenge_platform
@@ -74,7 +74,18 @@ sources:
     link_selector: a[href^="/challenges/"]
     link_pattern: /challenges/[^/]+$
     max_items: 20
-    skip_link_text: (?i)\b(ended|closed|completed|finished)\b
+    finished_link_text: (?i)\b(ended|closed|completed|finished)\b
+- id: aicrowd-completed
+  name: AIcrowd challenges (completed)
+  category: challenge_platform
+  kind: html_list
+  url: https://www.aicrowd.com/challenges?challenge_filter=completed
+  params:
+    link_selector: a[href^="/challenges/"]
+    link_pattern: /challenges/[^/]+$
+    max_items: 20
+    finished_link_text: (?i)\b(ended|closed|completed|finished)\b
+    finished_listing: true
 - id: proteinbase-competitions
   name: Adaptyv / Proteinbase protein-design competitions
   category: challenge_platform
@@ -83,7 +94,7 @@ sources:
   params:
     link_selector: a[href^="/competitions/"]
     link_pattern: /competitions/[^/]+$
-    skip_link_text: (?i)\b(ended|closed|completed|finished)\b
+    finished_link_text: (?i)\b(ended|closed|completed|finished)\b
 - id: greenhouse-anthropic
   name: anthropic jobs
   category: job_board
