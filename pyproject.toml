@@ -21,16 +21,18 @@ problemextractor = "problemextractor.cli:app"
 noveltyinvestigator = "noveltyinvestigator.cli:app"
 economicvalue = "economicvalue.cli:app"
 challenges = "challengeinvestigator.cli:app"
+fit = "personalfit.cli:app"
+opportunities = "opportunitygenerator.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["common/rqd", "SourceScout/sourcescout", "ProblemExtractor/problemextractor", "NoveltyInvestigator/noveltyinvestigator", "EconomicValueInvestigator/economicvalue", "ChallengeInvestigator/challengeinvestigator"]
+packages = ["common/rqd", "SourceScout/sourcescout", "ProblemExtractor/problemextractor", "NoveltyInvestigator/noveltyinvestigator", "EconomicValueInvestigator/economicvalue", "ChallengeInvestigator/challengeinvestigator", "PersonalFitInvestigator/personalfit", "OpportunityGenerator/opportunitygenerator"]
 
 [tool.pytest.ini_options]
-testpaths = ["common/tests", "SourceScout/tests", "ProblemExtractor/tests", "NoveltyInvestigator/tests", "EconomicValueInvestigator/tests", "ChallengeInvestigator/tests"]
+testpaths = ["common/tests", "SourceScout/tests", "ProblemExtractor/tests", "NoveltyInvestigator/tests", "EconomicValueInvestigator/tests", "ChallengeInvestigator/tests", "PersonalFitInvestigator/tests", "OpportunityGenerator/tests"]
 pythonpath = ["common/tests"]
 markers = ["live: hits the real network and the Anthropic API"]
 addopts = "-m 'not live'"

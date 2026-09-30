@@ -1,0 +1,13 @@
+agent:                              # one call per problem, no web tools: profile vs problem
+  model: claude-opus-5-5
+  effort: medium
+  max_budget_usd: 0.5
+  min_searches: 0
+profile_dir: ../personal_profile    # git-ignored; see README.md for what to put there
+profile_max_chars: 200000           # guard against an accidental huge file; the profile is sent on every call
+self_rating_files: [capabilities.yaml]
+self_rating_cap: 5                  # advantages resting only on self-ratings cap the score here
+no_advantage_cap: 2                 # no advantage backed by a profile quote caps the score here
+problemextractor_root: ../ProblemExtractor
+noveltyinvestigator_root: ../NoveltyInvestigator
+economicvalue_root: ../EconomicValueInvestigator

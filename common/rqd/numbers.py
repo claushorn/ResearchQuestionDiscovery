@@ -133,3 +133,30 @@ def numbers_in_text(text: str) -> list[tuple[float, bool]]:
         if m.group(2) or "." in m.group(1):
             out.append((float(m.group(1)), bool(m.group(2))))
     return out
+
+
+def unsupported_numbers(texts: list[tuple[str, str]], quotes: list[str], backed: list[float]) -> list[str]:
+    """Decimals and percentages in model-written texts that no verified quote states and no value backed elsewhere
+    (e.g. an earlier stage's record) equals: '<name>: <value>[%]'. Warnings, not rejections."""
+    out = []
+    for name, text in texts:
+        for value, pct in numbers_in_text(text):
+            quoted = any(figure_in_quote(value / 100, q, "%") for q in quotes) if pct else any(stated(value, q) for q in quotes)
+            if not quoted and not any(same_number(value, b) for b in backed):
+                out.append(f"{name}: {value:g}{'%' if pct else ''}")
+    return out
+
+
+def unsupported_amounts(texts: list[tuple[str, str]], quotes: list[str], backed: list[float] = ()) -> list[str]:
+    """Money amounts (currency or magnitude suffix) in model-written texts that no verified quote states (both ends
+    of a range, same currency) and no backed value (e.g. an earlier stage's computed range) equals: '<name>: <text>'."""
+    out = []
+    for name, text in texts:
+        for m in parse_amounts(text):
+            if not (m.currency or m.scaled):
+                continue
+            quoted = any(figure_in_quote(m.low, q, m.currency) and figure_in_quote(m.high, q, m.currency) for q in quotes)
+            known = all(any(same_number(v, b) for b in backed) for v in (m.low, m.high))
+            if not quoted and not known:
+                out.append(f"{name}: {m.text}")
+    return out

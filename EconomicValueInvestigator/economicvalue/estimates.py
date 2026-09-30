@@ -8,7 +8,7 @@ never by the model."""
 import math
 import re
 
-from rqd.numbers import figure_in_quote as _in_quote, parse_amounts
+from rqd.numbers import figure_in_quote as _in_quote, unsupported_amounts
 from economicvalue.schema import TEXT_FIELDS, EstimateRow, EVOutput
 
 MODELS = {  # potential value (USD/year) = product of the factors; computed here, never by the model
@@ -86,10 +86,6 @@ def _check(row: EstimateRow, out: EVOutput, verification: list[str], rates: dict
     return low * rate, high * rate, unit, entry, cited
 
 
-def _amount_supported(m, quotes: list[str]) -> bool:
-    return any(_in_quote(m.low, q, m.currency) and _in_quote(m.high, q, m.currency) for q in quotes)
-
-
 def build(out: EVOutput, verification: list[str], rates: dict[str, float]) -> dict:
     warnings = {"rejected_estimates": [], "unsupported_amounts": [], "unverified_wtp": []}
     grouped: dict[str, list] = {}
@@ -141,10 +137,7 @@ def build(out: EVOutput, verification: list[str], rates: dict[str, float]) -> di
                      "basis": [b for m in ms for b in m["basis"]], "model": "both"}
 
     verified_quotes = [e.quote for e, v in zip(out.evidence, verification) if v == "verified"]
-    for name in TEXT_FIELDS:
-        for m in parse_amounts(getattr(out, name)):
-            if (m.currency or m.scaled) and not _amount_supported(m, verified_quotes):
-                warnings["unsupported_amounts"].append(f"{name}: {m.text}")
+    warnings["unsupported_amounts"] = unsupported_amounts([(n, getattr(out, n)) for n in TEXT_FIELDS], verified_quotes)
 
     wtp = []
     for s in out.willingness_to_pay:
@@ -152,7 +145,7 @@ def build(out: EVOutput, verification: list[str], rates: dict[str, float]) -> di
             warnings["unverified_wtp"].append(f"{s.signal} (evidence {s.evidence} not verified)")
             continue
         ev = out.evidence[s.evidence - 1]
-        missing = [m.text for m in parse_amounts(s.signal) if (m.currency or m.scaled) and not _amount_supported(m, [ev.quote])]
+        missing = [w.removeprefix("signal: ") for w in unsupported_amounts([("signal", s.signal)], [ev.quote])]
         if missing:
             warnings["unverified_wtp"].append(f"{s.signal} (amount {', '.join(missing)} not in evidence {s.evidence}'s quote)")
             continue

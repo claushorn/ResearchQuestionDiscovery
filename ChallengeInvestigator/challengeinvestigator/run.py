@@ -15,7 +15,7 @@ from rqd.config import AgentCfg
 from rqd.errors import AgentError, ConfigError, RqdError
 from rqd.http import Fetcher
 from rqd.investigation import run_agent_logged, run_each, run_info, search_summary, with_history
-from rqd.numbers import figure_in_quote, numbers_in_text, same_number, stated
+from rqd.numbers import same_number, stated, unsupported_numbers
 from rqd.records import YamlStore
 from rqd.timeutil import utcnow
 from rqd.verify import verify_work
@@ -140,12 +140,6 @@ def check_headroom(ctx: CIContext, item_ids: list[str] | None = None) -> dict[st
                     budget=ctx.cfg.baseline_agent.max_budget_usd, item_errors=(AgentError, LeaderboardError))
 
 
-def _supported_number(value: float, pct: bool, quotes: list[str]) -> bool:
-    if pct:
-        return any(figure_in_quote(value / 100, q, "%") for q in quotes)
-    return any(stated(value, q) for q in quotes)
-
-
 def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
     item = _finished(ctx, item_id)
     if not ctx.challenges.exists(item_id):
@@ -175,10 +169,7 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
     texts = [("summary", out.summary)] + [(f"solutions[{i}].approach", s.approach) for i, s in enumerate(out.solutions, 1)]
     for i, idea in enumerate(out.ideas, 1):
         texts += [(f"ideas[{i}].{f}", getattr(idea, f)) for f in ("idea", "builds_on", "why_it_could_win", "risks")]
-    for name, text in texts:
-        for value, pct in numbers_in_text(text):
-            if not _supported_number(value, pct, quotes) and not any(same_number(value, b) for b in backed):
-                warnings["unsupported_numbers"].append(f"{name}: {value:g}{'%' if pct else ''}")
+    warnings["unsupported_numbers"] = unsupported_numbers(texts, quotes, backed)
     record["investigation"] = {
         "solutions": solutions, "ideas": [i.model_dump() for i in out.ideas], "summary": out.summary,
         "evidence": [e.model_dump() | {"verification": v} for e, v in zip(out.evidence, verification)],

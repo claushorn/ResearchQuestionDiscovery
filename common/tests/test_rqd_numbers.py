@@ -93,3 +93,15 @@ def test_scientific_notation_money():
     from rqd.numbers import parse_amounts
     assert [(m.low, m.currency) for m in parse_amounts("a $2e6 contract")] == [(2e6, "USD")]
     assert parse_amounts("KD of 3.7e-10 M") == []
+
+
+def test_unsupported_numbers_lists_what_no_quote_or_backed_value_states():
+    from rqd.numbers import unsupported_numbers
+    texts = [("summary", "gains 12.5% over 0.9, ceiling 1.0"), ("idea", "reach 87.1% accuracy")]
+    assert unsupported_numbers(texts, ["scored 0.9 overall", "the winner had 0.871 accuracy"], [1.0]) == ["summary: 12.5%"]
+
+
+def test_unsupported_amounts_lists_money_no_quote_states():
+    from rqd.numbers import unsupported_amounts
+    texts = [("thesis", "ARIA commits nearly £50m; teams get £100k - £3m"), ("x", "a 3-hour test, 2,000 runs")]
+    assert unsupported_amounts(texts, ["£100k - £3m per team for projects"]) == ["thesis: £50m"]
