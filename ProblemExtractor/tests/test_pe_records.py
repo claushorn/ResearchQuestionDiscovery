@@ -11,7 +11,7 @@ W = {"model": "m", "run_id": "R1", "output_tokens": 300, "at": "2026-09-30T13:00
 def test_new_record_has_the_six_sections_sources_and_log():
     c = candidate()
     rec = new_record(problem_id_for(c["candidate_id"]), c, PEOutput.model_validate(pe_output()), True, W)
-    assert rec["problem_id"] == "prob-0000000000000000-r1-0" and rec["revision"] == 1
+    assert rec["problem_id"] == "prob-" + c["candidate_id"].removeprefix("cand-") and rec["revision"] == 1
     assert rec["problem"]["precise_statement"].startswith("Plan long-horizon")
     assert rec["current_state"]["known_solution"] == "not stated"
     assert rec["unsolvedness"] == {"explicit": True, "explicit_evidence": "remains an open challenge", "inferred": False,

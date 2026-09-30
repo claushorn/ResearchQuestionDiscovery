@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import anthropic
+from pydantic import BaseModel, ValidationError
 
 from rqd.errors import AgentError, ExtractionConfigError, ItemExtractionError
 
@@ -144,3 +145,26 @@ def make_client(backend: str):
         raise ExtractionConfigError("No Anthropic credentials found",
                                     fix="export ANTHROPIC_API_KEY=... (or run `ant auth login`)")
     return client
+
+
+def raise_if_not_transient(e: anthropic.APIError) -> None:
+    """API errors a retry cannot fix (auth, permission, bad model, bad request) abort the run."""
+    if isinstance(e, (anthropic.APIConnectionError, anthropic.RateLimitError)):
+        return
+    if isinstance(e, anthropic.APIStatusError) and e.status_code >= 500:
+        return
+    raise ExtractionConfigError(f"Anthropic API rejected the request: {e}",
+                                fix="Check credentials, the model name in config.yaml, and the request schema") from e
+
+
+def parse_structured(message, model: type[BaseModel]):
+    """Validated structured output of one response (either backend); ItemExtractionError if unusable."""
+    if message.stop_reason in ("refusal", "max_tokens"):
+        raise ItemExtractionError(f"stop_reason={message.stop_reason}")
+    text = next((b.text for b in message.content if b.type == "text"), None)
+    if text is None:
+        raise ItemExtractionError("no text block in response")
+    try:
+        return model.model_validate_json(text)
+    except ValidationError as e:
+        raise ItemExtractionError(f"schema: {e.errors()[:3]}") from e

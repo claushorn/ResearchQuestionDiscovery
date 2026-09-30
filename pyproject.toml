@@ -16,6 +16,7 @@ dependencies = [
 
 [project.scripts]
 sourcescout = "sourcescout.cli:app"
+problemextractor = "problemextractor.cli:app"
 
 [build-system]
 requires = ["hatchling"]
