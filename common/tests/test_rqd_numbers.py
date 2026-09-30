@@ -73,3 +73,23 @@ def test_scientific_notation_is_read():
     assert figure_in_quote(3.7e-10, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)
     assert figure_in_quote(1.4e-9, "🥇 Nick Boyd (KD: 1.4e-9 M)", None)
     assert not figure_in_quote(3.7, "🥇 Miles McGibbon (KD: 3.7e-10 M)", None)
+
+
+def test_ordinals_are_not_figures():
+    # review: "1st place" backed a winner score of 1.0
+    from rqd.numbers import figures
+    assert figures("The 1st place team and the 21st and 3rd ones") == []
+
+
+def test_stated_needs_an_explicit_percent_for_the_hundredfold_reading():
+    # review: 50 was "stated" by a bare 0.5
+    from rqd.numbers import stated
+    assert stated(0.871, "reached 87.1% accuracy") and stated(87.1, "reached 87.1% accuracy")
+    assert stated(0.5, "Team X scored 0.5") and stated(50, "Team X scored 50")
+    assert not stated(50, "Team X scored 0.5") and not stated(90, "Team X scored 0.9")
+
+
+def test_scientific_notation_money():
+    from rqd.numbers import parse_amounts
+    assert [(m.low, m.currency) for m in parse_amounts("a $2e6 contract")] == [(2e6, "USD")]
+    assert parse_amounts("KD of 3.7e-10 M") == []

@@ -24,30 +24,65 @@ def quote_in_text(quote: str, text: str) -> bool:
     return re.search(left + re.escape(q) + right, _norm(text)) is not None
 
 
-_NUM = re.compile(r"\d+(?:\.\d+)?(?:[eE]-?\d+)?")
-_WORD = re.compile(r"[a-z][a-z0-9_\-]{2,}")
+_NUM = r"\d+(?:\.\d+)?(?:[eE][-+]?\d+)?"
+_WORD = r"[a-z][a-z0-9_\-]+"
+_TOK = re.compile(f"(?P<num>{_NUM})|(?P<word>{_WORD})")
 
 
-def _numbers(s: str) -> list[float]:
-    return [float(n) for n in _NUM.findall(s)]
+def _words(s: str) -> set[str]:
+    return set(re.findall(_WORD, s))
+
+
+def _has_number(n: float, cell: str) -> bool:
+    return any(abs(n - float(c)) <= 1e-9 * max(abs(float(c)), 1.0) for c in re.findall(_NUM, cell))
+
+
+def _own_rows(table) -> list[list[str]]:
+    """The table's rows as cell texts; rows of a nested table belong to that table, not this one."""
+    rows = []
+    for tr in table.css("tr"):
+        parent = tr.parent
+        while parent is not None and parent.tag != "table":
+            parent = parent.parent
+        if parent is not None and parent.mem_id == table.mem_id:
+            rows.append([_norm(c.text(separator=" ")) for c in tr.iter() if c.tag in ("td", "th")])
+    return rows
+
+
+def _row_matches(toks: list[tuple[str, str]], header: list[set[str]], cells: list[str]) -> bool:
+    head = set().union(*header)
+    row = set().union(*map(_words, cells))
+    words = {v for kind, v in toks if kind == "word"}
+    if not words <= row | head or not (words - head) & row:
+        return False  # every word is on the row or in the header, and one identifies the row (the team)
+    segment: set[str] = set()
+    for kind, v in toks:
+        if kind == "word":
+            segment |= {v} & head
+            continue
+        # the number sits in the column its preceding header word(s) name: "alpha_team Score 0.768"
+        cols = [i for i, h in enumerate(header) if segment and segment <= h and i < len(cells)]
+        if not any(_has_number(float(v), cells[i]) for i in cols):
+            return False
+        segment = set()
+    return True
 
 
 def row_in_html(quote: str, html: str) -> bool:
-    """A leaderboard quote such as "pranav_devarinti 19.369" or "ACPL: 19.369 | Win Rate: 97.0%": every number in
-    the quote appears (numerically equal) in ONE table row, and at least one quote word appears in that row or in
-    the table's header row. Rows are real <tr> elements, so a neighbouring row's score cannot be attributed."""
+    """A leaderboard quote "<team> <column heading> <cell> [<column heading> <cell> ...]", e.g.
+    "pranav_devarinti ACPL 19.369": one row of a table contains the team word(s), and each number is in the cell of
+    the column named by the heading word(s) before it (so a rank, entries or date column never backs a score, and a
+    neighbouring row's score is never attributed). Every quote word must be on that row or in the header."""
     from selectolax.parser import HTMLParser
 
-    q = _norm(quote)
-    nums, words = _numbers(q), set(_WORD.findall(q))
-    if not nums or not words:
+    toks = [(m.lastgroup, m.group()) for m in _TOK.finditer(_norm(quote))]
+    if not any(kind == "num" for kind, _ in toks):
         return False
     for table in HTMLParser(html).css("table"):
-        rows = [_norm(r.text(separator=" ")) for r in table.css("tr")]
-        header = set(_WORD.findall(rows[0])) if rows else set()
-        for row in rows:
-            row_nums = _numbers(row)
-            if all(any(abs(n - r) <= 1e-9 * max(abs(r), 1.0) for r in row_nums) for n in nums) and \
-                    (words & (set(_WORD.findall(row)) | header)):
-                return True
+        rows = _own_rows(table)
+        if len(rows) < 2:
+            continue
+        header = [_words(h) for h in rows[0]]
+        if any(_row_matches(toks, header, cells) for cells in rows[1:]):
+            return True
     return False

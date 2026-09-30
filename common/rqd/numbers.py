@@ -12,6 +12,7 @@ _SCALE = {"k": 1e3, "m": 1e6, "mn": 1e6, "million": 1e6, "b": 1e9, "bn": 1e9, "b
 _TOKEN = re.compile(
     r"(?P<pre>[$£€]\s?|\b(?:USD|GBP|EUR)\s?)?"
     r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d{1,3}(?:\.\d{3}){2,}|\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)"
+    r"(?![0-9]*(?:st|nd|rd|th)\b)"  # "1st place" is a rank, not a figure
     r"(?P<pct>\s?(?:%|percent\b))?"
     r"(?:\s?(?P<suf>k|mn|m|million|bn|b|billion)\b)?"
     r"(?:\s?(?P<post>USD|GBP|EUR|dollars?|pounds?|euros?)\b)?", re.IGNORECASE)
@@ -112,6 +113,13 @@ def figure_in_quote(value: float, quote: str, kind: str | None) -> bool:
         if kind is None and cur is None and _close(value, fig):
             return True
     return False
+
+
+def stated(value: float, quote: str) -> bool:
+    """A score or plain number as stated: 0.871 or 87.1 for "87.1%" (the hundredfold reading only with an explicit
+    percent sign: 50 is not stated by "0.5")."""
+    return any((cur is None or cur == "%") and _close(value, fig) or cur == "%" and _close(value / 100, fig)
+               for fig, cur in figures(quote))
 
 
 _NUMBER = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(\s?(?:%|percent\b))?")

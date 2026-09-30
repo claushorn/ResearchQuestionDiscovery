@@ -19,8 +19,10 @@ uv run challenges show <item-id>
    solutions (winners' / top teams' code, write-ups, papers, forum winners posts) and the agent's improvement ideas
    (what they build on, why they could win, risks, effort).
 
-No invented numbers: winner and baseline must be stated in a verified quote (exact figure); a ceiling needs a
-quote or a stated metric definition ("accuracy ≤ 1"); solutions without verified evidence are dropped, their scores
+No invented numbers: winner and baseline must be stated in a verified quote (exact figure; a leaderboard row
+quoted as "<team> <column> <cell>" verifies only if that row holds the team and the named column holds the number);
+a ceiling needs a quote or a metric definition stating 0, 1 or 100 ("accuracy is at most 1.0"); winner values that
+disagree (e.g. public vs private leaderboard) or a winner worse than the baseline make the verdict `unclear`; solutions without verified evidence are dropped, their scores
 kept only if quoted; decimals/percentages in the summary, approaches and ideas that no verified quote states are
 listed in `warnings.unsupported_numbers`; expected gains only as a labelled `expected_gain_assumption`.
 Output: `challenges/<item-id>.yaml` (format: `challenge_schema.yaml`); transcripts in `data/transcripts/`.

@@ -54,10 +54,45 @@ def test_definition_basis_not_allowed_for_winner():
     assert h["verdict"] == "unclear"
 
 
-def test_best_of_several_backed_winner_rows():
-    ev = evidence("Team X scored 0.9 on the private leaderboard", "Team Y scored 0.92 on the private leaderboard")
-    h = c([val("winner", 0.9), val("winner", 0.92, evidence=2), CEIL], ev=ev)
-    assert h["winner"]["value"] == 0.92
+def test_disagreeing_winner_values_are_unclear():
+    # review: taking the max of a private 0.9 and a public 0.99 turned "unclear" into "solved"
+    ev = evidence("Team X scored 0.9 on the private leaderboard", "Team X scored 0.99 on the public leaderboard")
+    h = c([val("winner", 0.9), val("winner", 0.99, evidence=2), CEIL], ev=ev)
+    assert h["verdict"] == "unclear" and h["winner"] is None and any("disagree" in w for w in h["warnings"])
+
+
+def test_agreeing_winner_values_from_two_sources():
+    ev = evidence("Team X scored 0.9 on the private leaderboard", "the winners reached 0.9 on the private set")
+    assert c([val("winner", 0.9), val("winner", 0.9, evidence=2), CEIL], ev=ev)["verdict"] == "headroom"
+
+
+def test_ordinal_does_not_back_a_winner():
+    ev = evidence("The 1st place team achieved the top score on the private leaderboard")
+    assert c([val("winner", 1.0), CEIL], ev=ev)["verdict"] == "unclear"
+
+
+def test_hundredfold_reading_needs_a_percent_sign():
+    ev = evidence("the winning entry reached 0.95 on the test set")
+    h = c([val("winner", 95), val("ceiling", 100, basis="definition", evidence=0, definition="at most 100%")], ev=ev)
+    assert h["verdict"] == "unclear"
+
+
+def test_definition_ceiling_must_state_a_canonical_bound():
+    # review: "trust me, 0.9 is the max" turned winner 0.9 into solved
+    ev = evidence("Team X scored 0.9 on the private leaderboard")
+    trust = val("ceiling", 0.9, basis="definition", evidence=0, definition="trust me, 0.9 is the max")
+    assert c([val("winner", 0.9), trust], ev=ev)["verdict"] == "unclear"
+    unstated = val("ceiling", 1.0, basis="definition", evidence=0, definition="accuracy is bounded")
+    assert c([val("winner", 0.9), unstated], ev=ev)["verdict"] == "unclear"
+    twenty = val("ceiling", 20, basis="definition", evidence=0, definition="the score is at most 20")
+    ev20 = evidence("Team X scored 19.4 on the private leaderboard")
+    assert c([val("winner", 19.4), twenty], ev=ev20)["verdict"] == "unclear"
+
+
+def test_winner_worse_than_baseline_is_unclear():
+    ev = evidence("Team X scored 0.2 on the private leaderboard", "the organisers' baseline reached 0.5 accuracy")
+    h = c([val("winner", 0.2), CEIL, val("baseline", 0.5, evidence=2)], ev=ev)
+    assert h["verdict"] == "unclear" and h["normalized_headroom"] is None and any("baseline" in w for w in h["warnings"])
 
 
 def test_percent_quotes_match_fraction_or_percent_values():

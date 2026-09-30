@@ -48,8 +48,10 @@ def test_too_short_quote_is_not_verified():
 
 
 def test_leaderboard_rows_verify_as_rows():
-    lb = "<html><body><table><tr><td>1</td><td>wulfebw</td><td>0.768</td></tr></table></body></html>"
+    lb = ("<html><body><table><tr><th>#</th><th>Team</th><th>Score</th></tr>"
+          "<tr><td>1</td><td>wulfebw</td><td>0.768</td></tr></table></body></html>")
     f = make_fetcher({"GET https://lb.example/x": lb})
-    assert verify_work(f, "https://lb.example/x", "wulfebw 0.768", table=True) == "verified_row"
+    assert verify_work(f, "https://lb.example/x", "wulfebw Score 0.768", table=True) == "verified_row"
     assert verify_work(f, "https://lb.example/x", "wulfebw 0.768") == "quote_too_short"
-    assert verify_work(f, "https://lb.example/x", "wulfebw 0.9", table=True) == "quote_not_found"
+    assert verify_work(f, "https://lb.example/x", "wulfebw Score 0.9", table=True) == "quote_not_found"
+    assert verify_work(f, "https://lb.example/x", "Team wulfebw reached a Score of 0.768", table=True) == "quote_not_found"

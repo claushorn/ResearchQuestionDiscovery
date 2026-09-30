@@ -16,8 +16,11 @@ improvement ideas.
 ## Rules (no invented numbers, as EconomicValueInvestigator)
 - Evidence quotes are fetched and verified (`rqd.verify`), min 3 words, boundary-matched.
 - `winner` and `baseline` values need basis `source`: the cited, verified quote must **contain the figure**.
-- `ceiling` basis `source` (figure in quote) or `definition` (bounded metric stated, e.g. "accuracy ≤ 1"; recorded
-  as a labelled definition). No assumed ceilings.
+- Leaderboard rows (`verified_row`, web pages only): quote "<team> <column heading> <cell>"; every quote word is on
+  that row or in the header, one identifies the row, and each number is in the column its heading words name.
+- `ceiling` basis `source` (figure in quote) or `definition` (only 0, 1 or 100, and the definition text must state
+  it, e.g. "accuracy is at most 1.0"; recorded as a labelled definition). No assumed ceilings.
+- Several backed winner values that disagree → `unclear` (no picking). Winner worse than the baseline → `unclear`.
 - Normalized headroom (code): higher-is-better `(ceiling − winner) / (ceiling − baseline)`, or
   `(ceiling − winner) / ceiling` without a baseline; lower-is-better `(winner − ceiling) / (baseline − ceiling)`,
   requires a baseline (else `unclear`). Winner beyond ceiling or non-positive scale → `unclear` + warning.

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pydantic import ValidationError
 
 from challengeinvestigator.config import CIConfig, CIPaths
-from challengeinvestigator.headroom import VERIFIED, _stated, compute
+from challengeinvestigator.headroom import VERIFIED, compute
 from challengeinvestigator.prompt import HEADROOM_PROMPT, INVESTIGATE_PROMPT, render_challenge
 from challengeinvestigator.schema import HEADROOM_SCHEMA, INVESTIGATE_SCHEMA, HeadroomOutput, InvestigateOutput
 from rqd.claude_code import ClaudeCodeClient
@@ -13,7 +13,7 @@ from rqd.config import AgentCfg
 from rqd.errors import AgentError, ConfigError, RqdError
 from rqd.http import Fetcher
 from rqd.investigation import run_agent_logged, run_each, run_info, search_summary, with_history
-from rqd.numbers import figure_in_quote, numbers_in_text
+from rqd.numbers import figure_in_quote, numbers_in_text, stated
 from rqd.records import YamlStore
 from rqd.timeutil import utcnow
 from rqd.verify import verify_work
@@ -103,7 +103,7 @@ def check_headroom(ctx: CIContext, item_ids: list[str] | None = None) -> dict[st
 def _supported_number(value: float, pct: bool, quotes: list[str]) -> bool:
     if pct:
         return any(figure_in_quote(value / 100, q, "%") for q in quotes)
-    return any(_stated(value, q) for q in quotes)
+    return any(stated(value, q) for q in quotes)
 
 
 def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
@@ -122,7 +122,7 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
             warnings["dropped_solutions"].append(f"{s.team} ({s.title}): evidence {s.evidence} not verified")
             continue
         entry = s.model_dump()
-        if s.score is not None and not _stated(s.score, out.evidence[s.evidence - 1].quote):
+        if s.score is not None and not stated(s.score, out.evidence[s.evidence - 1].quote):
             warnings["dropped_scores"].append(f"{s.team}: {s.score:g} not in evidence {s.evidence}'s quote")
             entry["score"] = None
         solutions.append(entry)

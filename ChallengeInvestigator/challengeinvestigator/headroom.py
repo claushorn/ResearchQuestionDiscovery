@@ -3,15 +3,10 @@ verified quotes state (spec rules). 'unclear' is never 'solved'."""
 import math
 
 from challengeinvestigator.schema import HeadroomOutput, Value
-from rqd.numbers import figure_in_quote
+from rqd.numbers import stated
 
-VERIFIED = ("verified", "verified_row")  # verified_row: a leaderboard row, numbers in one <tr>
-
-
-def _stated(value: float, quote: str) -> bool:
-    """A score may be quoted as a plain number or a percentage (0.871 or 87.1 for '87.1%')."""
-    return (figure_in_quote(value, quote, None) or figure_in_quote(value, quote, "%")
-            or figure_in_quote(value / 100, quote, "%"))
+VERIFIED = ("verified", "verified_row")  # verified_row: a leaderboard row, the number in its named column
+CANONICAL_BOUNDS = (0.0, 1.0, 100.0)  # a ceiling from the metric's definition alone: 0 error, 1.0 or 100%
 
 
 def _check(v: Value, out: HeadroomOutput, verification: list[str]) -> dict:
@@ -20,8 +15,10 @@ def _check(v: Value, out: HeadroomOutput, verification: list[str]) -> dict:
     if v.basis == "definition":
         if v.quantity != "ceiling":
             raise ValueError("only a ceiling can rest on the metric's definition")
-        if not v.definition.strip():
-            raise ValueError("definition basis without the definition stated")
+        if v.value not in CANONICAL_BOUNDS:
+            raise ValueError(f"a ceiling of {v.value:g} needs a source (definitions give only 0, 1 or 100)")
+        if not stated(v.value, v.definition):
+            raise ValueError("the definition does not state the ceiling")
         return {"type": "definition", "definition": v.definition}
     if not 1 <= v.evidence <= len(out.evidence):
         raise ValueError(f"cites evidence {v.evidence}, which does not exist")
@@ -29,7 +26,7 @@ def _check(v: Value, out: HeadroomOutput, verification: list[str]) -> dict:
     status = verification[v.evidence - 1]
     if status not in VERIFIED:
         raise ValueError(f"evidence {v.evidence} is {status}")
-    if not _stated(v.value, ev.quote):
+    if not stated(v.value, ev.quote):
         raise ValueError(f"{v.value:g} not in evidence {v.evidence}'s quote")
     return {"type": "source", "url": ev.url, "quote": ev.quote, "verification": status}
 
@@ -43,12 +40,16 @@ def compute(out: HeadroomOutput, verification: list[str], threshold: float) -> d
         except ValueError as e:
             warnings.append(f"{v.quantity} {v.value:g} rejected: {e}")
     higher = out.direction == "higher_is_better"
-    winner = (max if higher else min)(valid["winner"], key=lambda x: x[0]) if valid["winner"] else None
+    winner = valid["winner"][0] if valid["winner"] else None
+    if len({round(w, 12) for w, _ in valid["winner"]}) > 1:
+        warnings.append(f"backed winner values disagree: {', '.join(f'{w:g}' for w, _ in valid['winner'])}")
+        winner = None  # e.g. public vs private leaderboard: picking one would be a guess
     ceiling = valid["ceiling"][0] if valid["ceiling"] else None
     baseline = valid["baseline"][0] if valid["baseline"] else None
     normalized, verdict = None, "unclear"
     if winner is None:
-        warnings.append("no winner score backed by a verified quote")
+        if not valid["winner"]:
+            warnings.append("no winner score backed by a verified quote")
     elif ceiling is None:
         warnings.append("no ceiling backed by a verified quote or a stated metric definition")
     else:
@@ -65,6 +66,8 @@ def compute(out: HeadroomOutput, verification: list[str], threshold: float) -> d
             warnings.append(f"winner {w:g} is beyond the ceiling {c:g}")
         elif scale is not None and scale <= 0:
             warnings.append(f"non-positive scale {scale:g} (ceiling vs baseline)")
+        elif baseline is not None and gap > scale:
+            warnings.append(f"winner {w:g} is worse than the baseline {baseline[0]:g}: wrong column, scale or direction?")
         elif scale is not None:
             normalized = gap / scale
             verdict = "solved" if normalized < threshold - 1e-9 else "headroom"  # 1 - 0.9 is 0.0999...98

@@ -10,7 +10,7 @@ MIN_QUOTE_WORDS = 3  # "$" or "13%" alone would "verify" against almost any page
 def verify_work(fetcher: Fetcher, url: str, quote: str, table: bool = False) -> str:
     """'verified' | 'quote_not_found' (page read, quote absent) | 'unfetchable' (HTTP error, robots, timeout)
     | 'quote_too_short' (fewer than MIN_QUOTE_WORDS words: not evidence of anything)
-    | 'verified_row' (table=True, e.g. a leaderboard: the quote's numbers share one <tr> with a quote word)."""
+    | 'verified_row' (table=True, e.g. a leaderboard: see quotes.row_in_html)."""
     long_enough = len(quote.split()) >= MIN_QUOTE_WORDS
     if not long_enough and not table:
         return "quote_too_short"

@@ -5,10 +5,10 @@ HEADROOM_PROMPT = """You check how much room is left to beat the best result of 
 Find, from the challenge page, its leaderboard and the winners announcement:
 - metric: the primary metric used to rank the final (private) leaderboard; direction: higher_is_better or lower_is_better;
 - winner: the top final score (winner_team: the team);
-- ceiling: the best possible value of the metric. Either cite a page stating it (basis source), or, for a bounded metric, give the definition (basis definition, e.g. "accuracy is at most 1.0", "error cannot be below 0"). For unbounded metrics (rewards, scores without a maximum) give a ceiling only if a page states one;
+- ceiling: the best possible value of the metric. Either cite a page stating it (basis source), or, for a bounded metric, give the definition (basis definition, e.g. "accuracy is at most 1.0", "error cannot be below 0"). A definition may only give 0, 1 or 100 and must state that number; for any other ceiling (rewards, scores without a maximum) cite a page stating it;
 - baseline: the organisers' baseline score, if published.
 
-Every value with basis source must cite an evidence entry (1-based number) whose verbatim quote contains that exact number. For a table (a leaderboard or a results table in a paper), quote the row as it appears: the participant or team name followed by the score cell(s) exactly as shown, e.g. "pranav_devarinti 19.369". evidence: pages you opened with WebFetch, with a verbatim quote of at most 40 words copied character for character (never from a search snippet, no ellipses). Run at least {min_searches} WebSearch. Leave out values you cannot back; do not compute the headroom yourself. confidence: your probability that the values are right."""
+Every value with basis source must cite an evidence entry (1-based number) whose verbatim quote contains that exact number. For a leaderboard table on a web page, quote the team name, then the column heading and the cell exactly as shown, e.g. "pranav_devarinti ACPL 19.369" (only words from that row and the header row); results tables in PDFs must be quoted as sentences. evidence: pages you opened with WebFetch, with a verbatim quote of at most 40 words copied character for character (never from a search snippet, no ellipses). Run at least {min_searches} WebSearch. Leave out values you cannot back; do not compute the headroom yourself. confidence: your probability that the values are right."""
 
 INVESTIGATE_PROMPT = """You look for a way to BEAT the best solution of a finished challenge that still has headroom.
 
