@@ -145,15 +145,34 @@ def _page(title):
     return f"<html><head><title>{title}</title></head><body><main>{title} body</main></body></html>"
 
 
-def test_html_list_stops_at_completed_section():
+def test_html_list_flags_items_below_the_completed_heading():
     routes = {"GET https://dd.example/competitions": SECTIONED, **{f"GET https://dd.example/c/{i}": _page(f"C{i}") for i in (1, 2, 3)}}
     src = S("html_list", "https://dd.example/competitions", link_selector='a[href^="/c/"]',
-            stop_at_heading="(?i)completed competitions")
-    assert [i.title for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == ["C1", "C2"]
+            finished_after_heading="(?i)completed competitions")
+    items = KINDS["html_list"].fetch(src, make_fetcher(routes), never)
+    assert [(i.title, i.finished) for i in items] == [("C1", False), ("C2", False), ("C3", True)]
 
 
-def test_html_list_skips_links_whose_text_marks_them_finished():
+def test_html_list_flags_links_whose_text_marks_them_finished():
     routes = {"GET https://pb.example/competitions": CARDS, **{f"GET https://pb.example/c/{i}": _page(f"C{i}") for i in (1, 2, 3)}}
     src = S("html_list", "https://pb.example/competitions", link_selector='a[href^="/c/"]',
-            skip_link_text=r"(?i)\bended\b|\bclosed\b|\bcompleted\b")
-    assert [i.title for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == ["C1"]
+            finished_link_text=r"(?i)\bended\b|\bclosed\b|\bcompleted\b")
+    items = KINDS["html_list"].fetch(src, make_fetcher(routes), never)
+    assert [(i.title, i.finished) for i in items] == [("C1", False), ("C2", True), ("C3", True)]
+
+
+def test_known_item_that_finished_is_reported_without_refetching():
+    routes = {"GET https://pb.example/competitions": CARDS}  # no item pages: known items must not be fetched
+    src = S("html_list", "https://pb.example/competitions", link_selector='a[href^="/c/"]',
+            finished_link_text=r"(?i)\bended\b|\bclosed\b")
+    items = KINDS["html_list"].fetch(src, make_fetcher(routes), lambda u: True)
+    assert [(i.url, i.finished, i.status_only) for i in items] == [
+        ("https://pb.example/c/2", True, True), ("https://pb.example/c/3", True, True)]
+
+
+def test_finished_listing_flags_every_entry():
+    routes = {"GET https://ac.example/completed": '<a href="/c/1">One</a><a href="/c/2">Two</a>',
+              **{f"GET https://ac.example/c/{i}": _page(f"C{i}") for i in (1, 2)}}
+    src = S("html_list", "https://ac.example/completed", link_selector='a[href^="/c/"]', finished_listing=True)
+    assert [(i.title, i.finished) for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == [
+        ("C1", True), ("C2", True)]

@@ -1,5 +1,6 @@
 """Test helpers shared by all capability test suites (unique module name: no conftest collisions)."""
 import json
+import subprocess
 
 import httpx
 
@@ -45,3 +46,34 @@ def agent_result(**kw):
 
 def stream(*events):
     return "\n".join(json.dumps(e) for e in [{"type": "system", "subtype": "init"}, *events]) + "\n"
+
+
+def pdf_bytes(text: str) -> bytes:
+    """A minimal one-page PDF whose page shows `text` (Helvetica), enough for pypdf text extraction."""
+    content = f"BT /F1 12 Tf 72 720 Td ({text}) Tj ET".encode()
+    objs = [b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+            b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream",
+            b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    out, offsets = b"%PDF-1.4\n", []
+    for i, o in enumerate(objs, 1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % i + o + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offsets)
+    return out + b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, xref)
+
+
+class FakeRunner:
+    """Stands in for subprocess.run(["claude", "-p", ...]): returns the given stdout strings in order and records
+    each call. Exit code: `code` if given, else 0 for a successful result event, 1 otherwise."""
+
+    def __init__(self, *outputs: str, code: int | None = None):
+        self.outputs, self.code, self.calls = list(outputs), code, []
+
+    def __call__(self, args, *, input, env, cwd, timeout):
+        self.calls.append({"args": args, "input": input, "env": env, "timeout": timeout})
+        out = self.outputs.pop(0)
+        code = self.code if self.code is not None else (0 if '"is_error": false' in out else 1)
+        return subprocess.CompletedProcess(args, code, stdout=out, stderr="")

@@ -1,4 +1,5 @@
 import re
+from dataclasses import replace
 from urllib.parse import urljoin
 
 from selectolax.parser import HTMLParser
@@ -33,32 +34,44 @@ def fetch_page(source: Source, http: Fetcher, is_known: IsKnown,
 
 def fetch_list(source: Source, http: Fetcher, is_known: IsKnown,
                item_errors: list[str] | None = None) -> list[RawItem]:
+    """Items of a listing page. Entries the listing marks finished (`finished_link_text` on any link to the URL,
+    below a `finished_after_heading` heading, or everything when `finished_listing` is true) are returned with finished=True: stored for later use, never
+    extracted. A known entry that became finished comes back as a status-only update (no refetch)."""
     p = source.params
     resp = http.get(source.url)
-    stop = re.compile(p["stop_at_heading"]) if p.get("stop_at_heading") else None
-    skip = re.compile(p["skip_link_text"]) if p.get("skip_link_text") else None
+    below = re.compile(p["finished_after_heading"]) if p.get("finished_after_heading") else None
+    marker = re.compile(p["finished_link_text"]) if p.get("finished_link_text") else None
     urls, finished = [], set()
-    for node in HTMLParser(resp.text).root.traverse():  # document order, so sections can end the listing
-        if stop and node.tag in _HEADINGS and stop.search(node.text(separator=" ")):
-            break  # e.g. "Completed competitions": everything below is finished
+    in_finished_section = bool(p.get("finished_listing"))  # a listing of finished entries only (e.g. ?filter=completed)
+    for node in HTMLParser(resp.text).root.traverse():  # document order, so a heading can start the finished section
+        if below and node.tag in _HEADINGS and below.search(node.text(separator=" ")):
+            in_finished_section = True
+            continue
         if node.tag != "a" or not node.css_matches(p["link_selector"]):
             continue
         href = node.attributes.get("href")
         if not href:
             continue
         url = urljoin(str(resp.url), href).split("#")[0]
-        if skip and skip.search(node.text(separator=" ")):
-            finished.add(url)  # the listing marks it finished ("Ended", "Closed"); other links to it are skipped too
-            continue
         if p.get("link_pattern") and not re.search(p["link_pattern"], url):
             continue
+        if in_finished_section or (marker and marker.search(node.text(separator=" "))):
+            finished.add(url)  # any link to the URL marking it finished decides for all links to it
         urls.append(url)
+    urls = list(dict.fromkeys(urls))
+    cap = int(p.get("max_items", 30))
+    selected = [u for u in urls if u not in finished][:cap] + [u for u in urls if u in finished][:cap]
     items = []
-    for url in [u for u in dict.fromkeys(urls) if u not in finished][: int(p.get("max_items", 30))]:
+    for url in selected:
+        done = url in finished
         if is_known(url):
+            if done:
+                items.append(RawItem(source.id, url, "", None, "", (), finished=True, status_only=True))
             continue
         try:
-            items.append(page_item(source, url, http.get(url).text))
+            item = page_item(source, url, http.get(url).text)
         except SourceFetchError as e:
             item_failed(item_errors, url, e)
+            continue
+        items.append(replace(item, finished=done))
     return items

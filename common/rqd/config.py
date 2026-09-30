@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, ConfigDict
@@ -14,6 +15,13 @@ class HttpCfg(Strict):
     user_agent: str
     timeout_s: float
     min_interval_s_per_host: float
+
+
+class AgentCfg(Strict):
+    model: str
+    effort: Literal["low", "medium", "high", "xhigh", "max"]
+    max_budget_usd: float
+    min_searches: int
 
 
 def load_yaml(path: Path, error_cls: type[RqdError]) -> object:

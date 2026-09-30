@@ -19,16 +19,17 @@ dependencies = [
 sourcescout = "sourcescout.cli:app"
 problemextractor = "problemextractor.cli:app"
 noveltyinvestigator = "noveltyinvestigator.cli:app"
+economicvalue = "economicvalue.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["common/rqd", "SourceScout/sourcescout", "ProblemExtractor/problemextractor", "NoveltyInvestigator/noveltyinvestigator"]
+packages = ["common/rqd", "SourceScout/sourcescout", "ProblemExtractor/problemextractor", "NoveltyInvestigator/noveltyinvestigator", "EconomicValueInvestigator/economicvalue"]
 
 [tool.pytest.ini_options]
-testpaths = ["common/tests", "SourceScout/tests", "ProblemExtractor/tests", "NoveltyInvestigator/tests"]
+testpaths = ["common/tests", "SourceScout/tests", "ProblemExtractor/tests", "NoveltyInvestigator/tests", "EconomicValueInvestigator/tests"]
 pythonpath = ["common/tests"]
 markers = ["live: hits the real network and the Anthropic API"]
 addopts = "-m 'not live'"

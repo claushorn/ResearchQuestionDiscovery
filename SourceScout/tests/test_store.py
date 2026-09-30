@@ -61,3 +61,27 @@ def test_status_counts_and_retry_failed(tmp_path):
     st.mark_failed(a, "boom")
     assert st.status_counts() == {"failed": 1, "pending": 1}
     assert st.reset_failed() == 1 and st.status_counts() == {"pending": 2}
+
+
+def test_finished_items_are_stored_but_never_pending(tmp_path):
+    from dataclasses import replace
+    st = Store(tmp_path / "db.sqlite")
+    st.upsert(replace(item(url="https://a.example/done"), finished=True), T0, 100)
+    st.upsert(item(url="https://a.example/active"), T0, 100)
+    assert [i.url for i in st.pending()] == ["https://a.example/active"]
+    assert st.get(item_id_for("https://a.example/done")).finished is True
+    st.mark_finished("https://a.example/active")  # the challenge ended after it was collected
+    assert st.pending() == [] and st.status_counts() == {"finished": 2}
+
+
+def test_existing_database_gains_the_finished_column(tmp_path):
+    import sqlite3
+    db = tmp_path / "old.sqlite"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE items (item_id TEXT PRIMARY KEY, source_id TEXT NOT NULL, url TEXT NOT NULL, title TEXT NOT NULL,"
+                " published TEXT, content_hash TEXT NOT NULL, text TEXT NOT NULL, links TEXT NOT NULL, truncated INTEGER NOT NULL,"
+                " revision INTEGER NOT NULL, first_seen TEXT NOT NULL, last_seen TEXT NOT NULL, extract_status TEXT NOT NULL,"
+                " extract_error TEXT, batch_id TEXT)")
+    con.execute("INSERT INTO items VALUES ('x','s','https://a.example/x','t',NULL,'h','body','[]',0,1,'t0','t0','done',NULL,NULL)")
+    con.commit(); con.close()
+    assert Store(db).get("x").finished is False

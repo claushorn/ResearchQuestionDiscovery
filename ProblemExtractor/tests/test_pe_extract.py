@@ -166,3 +166,15 @@ def test_fallback_model_is_recorded_and_counted(ctx, tmp_path):
     run_extraction(pe, FakeClient([m]))
     assert pe.problems.load(problem_id_for(c["candidate_id"]))["extracted_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]
     assert pe.report.fallbacks == 1 and "model fallbacks: 1" in pe.report.render(2000)
+
+
+def test_candidate_of_a_finished_challenge_does_not_become_a_problem(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    from sourcescout.store import Store
+    Store(tmp_path / "SourceScout" / "data" / "scout.db").mark_finished(c["source"]["url"])
+    pe = ctx()
+    client = FakeClient([])
+    run_extraction(pe, client)
+    assert client.calls == [] and pe.report.finished == [c["candidate_id"]] and pe.report.new == 0
+    assert pe.state.is_processed(c["candidate_id"])

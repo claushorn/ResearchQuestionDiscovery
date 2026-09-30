@@ -48,6 +48,7 @@ class Source(BaseModel):
         return now - datetime.fromisoformat(self.last_scanned) >= timedelta(hours=self.cadence_hours)
 
 
+_RENAMED = {"skip_link_text": "finished_link_text", "stop_at_heading": "finished_after_heading"}
 _FIX = "Edit SourceScout/registry.yaml (categories: sources.yaml; kinds: sourcescout/adapters)"
 
 
@@ -91,7 +92,11 @@ class Registry:
                     HTMLParser("").css(s.params[key])
                 except ValueError as e:
                     raise RegistryError(f"source {s.id!r}: invalid CSS selector in {key}: {e}", fix=_FIX) from e
-        for key in ("title_include", "title_exclude", "link_pattern", "skip_link_text", "stop_at_heading"):
+        for old, new in _RENAMED.items():
+            if old in s.params:
+                raise RegistryError(f"source {s.id!r}: param {old!r} was renamed (finished items are now flagged, not skipped)",
+                                    fix=f"Rename {old} to {new} in registry.yaml")
+        for key in ("title_include", "title_exclude", "link_pattern", "finished_link_text", "finished_after_heading"):
             if key in s.params:
                 try:
                     re.compile(s.params[key])

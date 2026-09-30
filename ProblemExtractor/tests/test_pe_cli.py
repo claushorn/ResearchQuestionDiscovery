@@ -59,3 +59,17 @@ def test_run_refused_while_sourcescout_runs(root, tmp_path, monkeypatch):
 def test_list_rejects_unknown_sort(root):
     res = runner.invoke(app, ["--root", str(root), "list", "--sort", "foo"])
     assert res.exit_code != 0 and "foo" in res.output
+
+
+def test_list_flags_problems_whose_deadlines_all_passed(root, tmp_path, monkeypatch):
+    from datetime import date
+    from rqd.records import YamlStore
+    import problemextractor.cli as pe_cli
+    monkeypatch.setattr(pe_cli, "today", lambda: date(2026, 9, 30))
+    c = candidate(0)
+    rec = {"problem_id": "prob-x", "revision": 1, "problem": {"precise_statement": "Old call"},
+           "sources": [{"candidate_id": c["candidate_id"], "source_id": "sbir-topics", "tier": "A", "url": "u", "title": "t",
+                        "payment_signal": {"type": "contract", "stated": "", "deadline": "2026-07-10"}}]}
+    YamlStore(root / "problems").save(rec, "prob-x")
+    res = runner.invoke(app, ["--root", str(root), "list"])
+    assert "prob-x" in res.output and "DUE PASSED" in res.output

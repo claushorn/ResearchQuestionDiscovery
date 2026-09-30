@@ -4,8 +4,14 @@ from rqd.http import Fetcher, html_to_text, pdf_to_text
 from rqd.quotes import quote_in_text
 
 
+MIN_QUOTE_WORDS = 3  # "$" or "13%" alone would "verify" against almost any page
+
+
 def verify_work(fetcher: Fetcher, url: str, quote: str) -> str:
-    """'verified' | 'quote_not_found' (page read, quote absent) | 'unfetchable' (HTTP error, robots, timeout)."""
+    """'verified' | 'quote_not_found' (page read, quote absent) | 'unfetchable' (HTTP error, robots, timeout)
+    | 'quote_too_short' (fewer than MIN_QUOTE_WORDS words: not evidence of anything)."""
+    if len(quote.split()) < MIN_QUOTE_WORDS:
+        return "quote_too_short"
     try:
         resp = fetcher.get(url)
         if "pdf" in resp.headers.get("content-type", "").lower() or resp.content[:5] == b"%PDF-":
