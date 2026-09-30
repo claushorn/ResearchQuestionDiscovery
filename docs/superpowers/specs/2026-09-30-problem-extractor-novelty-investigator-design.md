@@ -159,10 +159,18 @@ uv run problemextractor list [--sort sources|tier]   # id, statement, #sources, 
 uv run problemextractor show <problem-id>
 ```
 
-### 4.5 Budget
+### 4.5 Compute, expert knowledge and budget
 
-`extraction.token_budget` in `ProblemExtractor/config.yaml` (default 600
-output tokens per candidate), reported per run like SourceScout.
+- Effort `high`: PE is where extra reasoning adds value (user decision 2026-09-30).
+- Where the document is silent, the model adds its own expert assessment in separate, labelled fields
+  `current_state.known_solution_inferred` and `failure.what_current_methods_cannot_do_inferred`;
+  document fields stay document-only (user decision 2026-09-30). NI later tests those claims.
+- Reported limit `extraction.token_budget` 2000 output tokens per candidate (a limit, but higher than
+  SourceScout's; user decision 2026-09-30). Measured on 15 real candidates at high effort: median 1297,
+  p90 1752, max 2087. Reported per run with the number of structured-output retries.
+- The model-facing schema is FLAT: with the nested sections as nested objects, `claude -p` rejected 3/10
+  outputs as unparseable JSON (measured); code maps flat fields to the nested record format. Remaining
+  retries are Opus 5.5's biology safety classifier on protein documents (external).
 
 ## 5. Novelty Investigator
 
