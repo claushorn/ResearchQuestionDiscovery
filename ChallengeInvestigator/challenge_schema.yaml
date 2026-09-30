@@ -2,26 +2,29 @@
 item_id: 67d2eba5f07d24c5            # SourceScout item id
 revision: 1
 challenge: {title: ..., url: ..., source_id: aicrowd-completed}
-headroom:
-  metric: accuracy
+headroom:                           # scraped + computed by code; an agent only for a missing baseline
+  metric: Average Centipawn Loss (ACPL)   # the leaderboard's primary score column (null when not_applicable)
   direction: higher_is_better | lower_is_better
-  winner: {value: 0.9, team: Team X, basis: [{type: source, url, quote, verification: verified}]}   # or null
-  ceiling: {value: 1.0, basis: [{type: definition, definition: "accuracy is at most 1.0"}]}           # or null
-  baseline: {value: 0.5, basis: [...]}                                                                # or null
-  normalized_headroom: 0.2          # computed by code; null when unclear
-  verdict: solved | headroom | unclear
+  leaderboard:
+    url: https://www.aicrowd.com/challenges/global-chess-challenge-2025/leaderboards
+    label: Round 2 · Overall        # round / track shown
+    top: [{rank: 1, team: pranav_devarinti, score: 19.369}, ...]   # first 10 ranked rows
+    baselines: [{name: openai-gpt-5.2-low, score: 68.623}, ...]     # organisers' baseline rows
+  winner: {value: 19.369, team: pranav_devarinti}
+  ceiling: {value: 0.0, basis: {type: definition, definition: "..."}}                 # from config metric_bounds
+  baseline: {value: 68.623, basis: {type: leaderboard, name: openai-gpt-5.2-low}}     # or {type: source, url, quote,
+                                    #   verification: verified} from the lookup; or null
+  normalized_headroom: 0.28         # null unless headroom / solved
+  verdict: solved | headroom | unclear | not_applicable
   threshold: 0.1
-  reasoning: ...
-  confidence: 0.8
-  warnings: [...]                   # rejected values and why
-  evidence: [{title, url, kind, quote, verification}]
-  search: {searches, fetches, queries, sufficient}
-  run: {model, effort, answered_by, cost_usd_equivalent, ..., transcript}
+  warnings: [...]
+  baseline_lookup: null             # or {evidence: [...], reasoning, search, run, warnings} when an agent looked it up
+  checked_at: 2026-09-30T20:00:00+00:00
 investigation:                      # null until `challenges investigate`
   solutions: [{place, team, title, url, kind, approach, score, evidence}]
   ideas: [{idea, builds_on, why_it_could_win, risks, effort, expected_gain_assumption}]
   summary: ...
-  evidence: [...]
+  evidence: [{title, url, kind, quote, verification}]
   warnings: {dropped_solutions: [...], dropped_scores: [...], unsupported_numbers: [...]}
   search: {...}
   run: {...}

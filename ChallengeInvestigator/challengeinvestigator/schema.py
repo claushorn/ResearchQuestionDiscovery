@@ -1,5 +1,5 @@
-"""Model-facing outputs (flat: lists of flat objects only). Verification, headroom and verdicts are computed by
-code; numbers are only kept when a verified quote states them (or, for a ceiling, a stated metric definition)."""
+"""Model-facing outputs (flat: lists of flat objects only). Verification and headroom are computed by code; numbers
+are only kept when a verified quote (or the scraped leaderboard) states them."""
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -18,25 +18,14 @@ class Evidence(_M):
     quote: str  # verbatim text read on that page
 
 
-class Value(_M):
-    quantity: Literal["winner", "ceiling", "baseline"]
-    value: float
-    basis: Literal["source", "definition"]  # definition: only for a ceiling of a bounded metric
-    evidence: int = 0                       # 1-based number into evidence for basis source
-    definition: str = ""                    # e.g. "accuracy is at most 1.0"
-
-
-class HeadroomOutput(_M):
-    metric: str
-    direction: Literal["higher_is_better", "lower_is_better"]
-    winner_team: str = ""
+class BaselineOutput(_M):
     evidence: list[Evidence]
-    values: list[Value] = Field(default_factory=list)
+    baseline: float | None = None  # the organisers' benchmark score on the leaderboard metric, if found
+    evidence_index: int = 0        # 1-based number of the evidence entry whose quote states it
     reasoning: str
-    confidence: float = Field(ge=0, le=1)
 
 
-HEADROOM_SCHEMA = api_schema(HeadroomOutput)
+BASELINE_SCHEMA = api_schema(BaselineOutput)
 
 
 class Solution(_M):

@@ -70,7 +70,7 @@ class Fetcher:
         except httpx.HTTPError as e:
             raise SourceFetchError(f"{method} {url}: {e}") from e
         if resp.status_code >= 400:
-            raise SourceFetchError(f"{method} {url}: HTTP {resp.status_code}")
+            raise SourceFetchError(f"{method} {url}: HTTP {resp.status_code}", resp.status_code)
         return resp
 
     def _check_robots(self, url: str) -> None:
