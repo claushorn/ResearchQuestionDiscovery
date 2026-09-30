@@ -24,6 +24,8 @@ technical_area: [...]               # <= 3 tags
 entities:                           # <= 3 organisations, <= 3 researchers
   organizations: [...]
   researchers: [...]
+referenced_urls: [...]              # resolved by code from the model's relevant_links (numbers into the item's link list)
+unresolved_link_refs: []            # link numbers the model gave that do not exist
 evidence_verified: true             # every non-empty quote found verbatim in the source text
 length_violations: []               # fields exceeding their word limit
 extracted_with:

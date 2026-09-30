@@ -50,3 +50,12 @@ def test_discover_adds_candidates_and_writes_unmapped(paths):
     # second run: nothing new, unmapped not duplicated
     discover(reg, make_fetcher(routes), cfg, refs, links, RunReport.new(NOW), paths.unmapped)
     assert len(reg.sources) == 3 and len(yaml.safe_load(paths.unmapped.read_text())) == 1
+
+
+def test_unmapped_urls_deduplicated_across_www_and_trailing_slash(paths):
+    reg = make_registry(paths, [])
+    page = "<html><body>no feed</body></html>"
+    routes = {"GET https://www.corp.example/about": page, "GET https://corp.example/about/": page}
+    refs = [("https://www.corp.example/about", "i1"), ("https://corp.example/about/", "i2")]
+    discover(reg, make_fetcher(routes), load_config(paths.config).discovery, refs, [], RunReport.new(NOW), paths.unmapped)
+    assert len(yaml.safe_load(paths.unmapped.read_text())) == 1

@@ -25,6 +25,7 @@ from sourcescout.store import Store, StoredItem
 from sourcescout.timeutil import iso, utcnow
 
 log = logging.getLogger("sourcescout")
+MAX_LINKS = 50  # links shown to the model, numbered from 1
 
 SYSTEM_PROMPT = """You extract candidate technical problems from one source document for a problem-discovery pipeline.
 
@@ -40,11 +41,12 @@ Rules:
 - payment_signal: type is one of prize, grant, contract, hiring, investor_thesis, none_stated. A job posting for a role whose work is to solve the problem is hiring. stated is the amount, headcount or funding as written (empty string if none). evidence is a verbatim quote of at most 50 words supporting it; an empty string when type is none_stated. deadline is the stated submission or closing date as YYYY-MM-DD, or null.
 - Quotes are copied character for character from the document text: no ellipses, no paraphrase, no merged fragments.
 - technical_area: at most 3 short tags, e.g. "reinforcement learning", "protein design".
-- entities: at most 3 organisations and 3 named researchers most directly connected to the problem."""
+- entities: at most 3 organisations and 3 named researchers most directly connected to the problem.
+- relevant_links: the numbers (from the numbered link list) of at most 5 links pointing to the official call, challenge, dataset, paper or organisation page about this problem; an empty list if none."""
 
 
 def render_item(item: StoredItem, source: Source, category: Category) -> str:
-    links = "\n".join(item.links[:50])
+    links = "\n".join(f"[{i}] {url}" for i, url in enumerate(item.links[:MAX_LINKS], 1))
     return (f'<document source_id="{source.id}" category="{category.id}" tier="{category.tier}">\n'
             f"<title>{item.title}</title>\n<url>{item.url}</url>\n<published>{item.published or ''}</published>\n"
             f"<text>\n{item.text}\n</text>\n<links>\n{links}\n</links>\n</document>")
@@ -148,6 +150,9 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
         quotes, present = _required_quotes(c)
         verified = present and all(quote_in_text(q, item.text) for q in quotes)
         violations = length_violations(c)
+        shown = item.links[:MAX_LINKS]
+        referenced = [shown[n - 1] for n in dict.fromkeys(c.relevant_links) if 1 <= n <= len(shown)]
+        unresolved = [n for n in c.relevant_links if not 1 <= n <= len(shown)]
         stat.unverified += int(not verified)
         stat.length_violations += int(bool(violations))
         record = {
@@ -161,6 +166,8 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
             "payment_signal": c.payment_signal.model_dump(),
             "technical_area": c.technical_area,
             "entities": c.entities.model_dump(),
+            "referenced_urls": referenced,  # resolved by code from relevant_links; the model never copies URLs
+            "unresolved_link_refs": unresolved,
             "evidence_verified": verified,
             "length_violations": violations,
             "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now)},
@@ -187,7 +194,7 @@ def _params_for(ctx: ExtractContext, item: StoredItem) -> dict | None:
 
 
 def _run_sync(ctx: ExtractContext, client, limit: int | None) -> None:
-    items = ctx.store.pending(limit)
+    items = _prioritized_pending(ctx, limit)
     log.info("extracting %d pending items (sync)", len(items))
     for i, item in enumerate(items, 1):
         stat = ctx.report.extract_stat(item.source_id)
@@ -219,6 +226,15 @@ def _extract_one(ctx: ExtractContext, client, item: StoredItem) -> None:
     handle_message(ctx, item, message)
 
 
+def _prioritized_pending(ctx: ExtractContext, limit: int | None) -> list[StoredItem]:
+    """Pending items, highest source tier first (A: funded calls ... C: blogs); oldest first within a tier."""
+    def tier(item: StoredItem) -> str:
+        source = ctx.registry.find(item.source_id)
+        return ctx.registry.categories[source.category].tier if source else "Z"
+    items = sorted(ctx.store.pending(), key=tier)  # stable: keeps first_seen order within a tier
+    return items if limit is None else items[:limit]
+
+
 def run_extraction(ctx: ExtractContext, client, *, batch: bool, limit: int | None = None, sleep=time.sleep) -> None:
     if batch and isinstance(client, ClaudeCodeClient):
         raise ExtractionConfigError("batch extraction needs extraction.backend: api",
@@ -232,17 +248,17 @@ def run_extraction(ctx: ExtractContext, client, *, batch: bool, limit: int | Non
         ctx.registry.save()
 
 
-def productive_item_links(output_dir: Path, store: Store, since: datetime) -> list[tuple[str, str]]:
-    """(link, item_id) for every stored link of items that yielded candidates since `since` (discovery input)."""
+def recent_referenced_links(output_dir: Path, since: datetime) -> list[tuple[str, str]]:
+    """(url, item_id) for the relevant links of candidates extracted since `since` (discovery input)."""
+    out = []
     month = since.strftime("%Y-%m")
-    item_ids = []
     for path in sorted(output_dir.glob("*/*.yaml")):
         if path.parent.name < month:
             continue
         rec = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if datetime.fromisoformat(rec["extracted_with"]["at"]) >= since and rec["item_id"] not in item_ids:
-            item_ids.append(rec["item_id"])
-    return [(link, iid) for iid in item_ids if (item := store.get(iid)) for link in item.links]
+        if datetime.fromisoformat(rec["extracted_with"]["at"]) >= since:
+            out += [(url, rec["item_id"]) for url in rec.get("referenced_urls") or []]
+    return out
 
 
 def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
@@ -286,7 +302,7 @@ def _run_batch(ctx: ExtractContext, client, limit: int | None, sleep) -> None:
     for batch_id in ctx.store.submitted_batch_ids():
         _collect_batch(ctx, client, batch_id, sleep)
     requests = []
-    for item in ctx.store.pending(limit):
+    for item in _prioritized_pending(ctx, limit):
         params = _params_for(ctx, item)
         if params is not None:
             requests.append(Request(custom_id=item.item_id, params=MessageCreateParamsNonStreaming(**params)))

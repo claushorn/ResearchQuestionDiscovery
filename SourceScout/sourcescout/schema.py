@@ -37,6 +37,7 @@ class ExtractedCandidate(_M):
     payment_signal: PaymentSignal
     technical_area: list[str] = Field(max_length=3)
     entities: Entities
+    relevant_links: list[int] = Field(default_factory=list)  # numbers from the document's link list
 
 
 class ExtractionResult(_M):
