@@ -85,3 +85,11 @@ def test_existing_database_gains_the_finished_column(tmp_path):
     con.execute("INSERT INTO items VALUES ('x','s','https://a.example/x','t',NULL,'h','body','[]',0,1,'t0','t0','done',NULL,NULL)")
     con.commit(); con.close()
     assert Store(db).get("x").finished is False
+
+
+def test_finished_items_lists_only_finished(tmp_path):
+    from dataclasses import replace
+    st = Store(tmp_path / "db.sqlite")
+    st.upsert(replace(item(url="https://a.example/done"), finished=True), T0, 100)
+    st.upsert(item(url="https://a.example/active"), T0, 100)
+    assert [i.url for i in st.finished_items()] == ["https://a.example/done"]

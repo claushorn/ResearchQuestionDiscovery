@@ -1,6 +1,6 @@
 import pytest
 
-from economicvalue.money import parse_amounts, to_usd
+from rqd.numbers import figure_in_quote, numbers_in_text, parse_amounts, to_usd
 
 RATES = {"USD": 1.0, "GBP": 1.25, "EUR": 1.1}
 
@@ -50,3 +50,19 @@ def test_parse_amounts_review_cases(text, expected):
 def test_unknown_currency_code_is_not_converted():
     [m] = parse_amounts("CHF 5,000")
     assert m.currency is None and to_usd(m, RATES) is None
+
+
+def test_numbers_in_text_finds_decimals_and_percentages_not_ranks_or_years():
+    text = "The 1st place team (2023) reached 0.871 accuracy, 12.5% above the 0.62 baseline in 3 rounds."
+    assert numbers_in_text(text) == [(0.871, False), (12.5, True), (0.62, False)]
+
+
+@pytest.mark.parametrize("value, quote, kind, ok", [
+    (0.871, "Team X scored 0.871 on the private leaderboard", None, True),
+    (0.87, "Team X scored 0.871 on the private leaderboard", None, False),
+    (40_000, "incidents cost us $40,000 each", "USD", True),
+    (40_000, "incidents cost us $40,000 each", "GBP", False),
+    (0.13, "13% of surveyed organizations", "%", True),
+])
+def test_figure_in_quote(value, quote, kind, ok):
+    assert figure_in_quote(value, quote, kind) is ok

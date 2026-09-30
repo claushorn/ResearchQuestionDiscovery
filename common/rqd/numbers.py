@@ -92,3 +92,34 @@ def to_usd(m: Money, rates: dict[str, float]) -> tuple[float, float] | None:
     if m.currency is None or m.currency not in rates:
         return None
     return m.low * rates[m.currency], m.high * rates[m.currency]
+
+
+def _close(a: float, b: float) -> bool:
+    """Same number as stated (float precision only): 0.87 is not 0.871, $1.4M is not $1.5M."""
+    return abs(a - b) <= 1e-9 * max(abs(b), 1.0)
+
+
+def figure_in_quote(value: float, quote: str, kind: str | None) -> bool:
+    """Is `value` stated in `quote`? kind: an ISO currency code for money (same currency required), '%' for
+    shares (a percentage, or a plain fraction in [0, 1]), None for plain numbers (counts, scores)."""
+    for fig, cur in figures(quote):
+        if kind == "%" and ((cur == "%" and _close(value, fig)) or (cur is None and 0 <= fig <= 1 and _close(value, fig))):
+            return True
+        if kind not in ("%", None) and cur == kind and _close(value, fig):
+            return True
+        if kind is None and cur is None and _close(value, fig):
+            return True
+    return False
+
+
+_NUMBER = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)(\s?(?:%|percent\b))?")
+
+
+def numbers_in_text(text: str) -> list[tuple[float, bool]]:
+    """Decimals and percentages stated in free text (scores, gains); integers such as ranks, years or counts are
+    not included. Returns (value, is_percent)."""
+    out = []
+    for m in _NUMBER.finditer(text or ""):
+        if m.group(2) or "." in m.group(1):
+            out.append((float(m.group(1)), bool(m.group(2))))
+    return out

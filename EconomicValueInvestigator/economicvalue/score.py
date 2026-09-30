@@ -1,7 +1,7 @@
 """Free, deterministic signals from money SourceScout already collected for a problem's sources."""
 from collections import Counter
 
-from economicvalue.money import parse_amounts, to_usd
+from rqd.numbers import parse_amounts, to_usd
 from rqd.timeutil import deadline_summary, today
 
 _TIER_ORDER = "ABCDE"
