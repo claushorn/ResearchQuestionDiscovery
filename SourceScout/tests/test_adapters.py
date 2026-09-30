@@ -2,7 +2,7 @@ import pytest
 
 from conftest import make_fetcher
 from sourcescout.adapters import KINDS, REQUIRED_PARAMS
-from sourcescout.errors import SourceFetchError
+from rqd.errors import SourceFetchError
 from sourcescout.registry import Source
 
 

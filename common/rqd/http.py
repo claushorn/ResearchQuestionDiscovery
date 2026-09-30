@@ -6,8 +6,8 @@ from urllib.robotparser import RobotFileParser
 import httpx
 from selectolax.parser import HTMLParser
 
-from sourcescout.config import HttpCfg
-from sourcescout.errors import SourceFetchError
+from rqd.config import HttpCfg
+from rqd.errors import SourceFetchError
 
 _BOILERPLATE = ("script", "style", "noscript", "nav", "footer", "header", "svg", "form")
 

@@ -5,7 +5,8 @@ import pytest
 from conftest import make_registry
 from sourcescout.categories import load_categories
 from sourcescout.config import load_config
-from sourcescout.errors import ConfigError, RegistryError
+from rqd.errors import ConfigError
+from sourcescout.errors import RegistryError
 from sourcescout.registry import Registry
 
 KINDS = {"page": (), "grants_gov": ("keyword",)}

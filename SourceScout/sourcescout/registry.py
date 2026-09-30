@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from selectolax.parser import HTMLParser
 
 from sourcescout.categories import Category
-from sourcescout.config import Strict, load_yaml
+from rqd.config import Strict, load_yaml
 from sourcescout.errors import RegistryError
 
 

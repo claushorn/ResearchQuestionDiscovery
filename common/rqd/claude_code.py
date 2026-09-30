@@ -3,11 +3,14 @@ subscription instead of the API account. Exposes the same `messages.create(**par
 `anthropic.Anthropic`, so extraction keeps one response-handling path (extract.handle_message)."""
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 from types import SimpleNamespace
 
-from sourcescout.errors import ExtractionConfigError, ItemExtractionError
+import anthropic
+
+from rqd.errors import ExtractionConfigError, ItemExtractionError
 
 _API_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")  # would silently switch billing to the API account
 TIMEOUT_S = 600
@@ -59,3 +62,16 @@ def _run(args, *, input, env, cwd, timeout):
 class ClaudeCodeClient:
     def __init__(self, runner=_run):
         self.messages = _Messages(runner)
+
+
+def make_client(backend: str):
+    if backend == "claude_code":
+        if shutil.which("claude") is None:
+            raise ExtractionConfigError("backend claude_code needs the `claude` CLI on PATH",
+                                        fix="Install Claude Code, or set extraction.backend: api in config.yaml")
+        return ClaudeCodeClient()
+    client = anthropic.Anthropic()
+    if client.api_key is None and client.auth_token is None and client.credentials is None:
+        raise ExtractionConfigError("No Anthropic credentials found",
+                                    fix="export ANTHROPIC_API_KEY=... (or run `ant auth login`)")
+    return client

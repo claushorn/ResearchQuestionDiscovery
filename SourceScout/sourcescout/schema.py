@@ -2,6 +2,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from rqd.structured import api_schema
+
 MAX_CANDIDATES = 3
 WORD_LIMITS = {"statement": 60, "why_interesting": 30,
                "explicit_unsolved_signal.evidence": 50, "payment_signal.evidence": 50}
@@ -44,28 +46,7 @@ class ExtractionResult(_M):
     candidates: list[ExtractedCandidate] = Field(max_length=MAX_CANDIDATES)
 
 
-_DROP = {"title", "default", "maxLength", "minLength", "maxItems", "minItems"}
 
-
-def _sanitize(node):
-    # structured outputs accept optional properties; pydantic already lists only fields without defaults in "required"
-    if isinstance(node, list):
-        return [_sanitize(n) for n in node]
-    if not isinstance(node, dict):
-        return node
-    out = {}
-    for k, v in node.items():
-        if k in _DROP:
-            continue
-        out[k] = {name: _sanitize(sub) for name, sub in v.items()} if k in ("properties", "$defs") else _sanitize(v)
-    if out.get("type") == "object":
-        out["additionalProperties"] = False
-    return out
-
-
-def api_schema(model: type[BaseModel]) -> dict:
-    """JSON schema accepted by output_config.format (unsupported constraints removed; Pydantic enforces them)."""
-    return _sanitize(model.model_json_schema())
 
 
 EXTRACTION_SCHEMA = api_schema(ExtractionResult)

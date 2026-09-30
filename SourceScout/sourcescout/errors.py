@@ -1,26 +1,5 @@
-class ScoutError(Exception):
-    """Deterministic, operator-fixable failure. The CLI prints message + fix and exits 1."""
-
-    def __init__(self, message: str, fix: str = ""):
-        super().__init__(message)
-        self.fix = fix
+from rqd.errors import RqdError
 
 
-class ConfigError(ScoutError):
+class RegistryError(RqdError):
     pass
-
-
-class RegistryError(ScoutError):
-    pass
-
-
-class ExtractionConfigError(ScoutError):
-    pass
-
-
-class ItemExtractionError(Exception):
-    """External failure extracting one item; the item is marked failed and the run continues."""
-
-
-class SourceFetchError(Exception):
-    """External failure while fetching one source; recorded and reported, the run continues."""

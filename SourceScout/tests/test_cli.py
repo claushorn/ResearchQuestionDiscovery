@@ -49,7 +49,7 @@ def test_env_file_next_to_scout_dir_is_loaded(paths, monkeypatch):
 
 def test_run_saves_report_even_when_extraction_aborts(paths, monkeypatch):
     from sourcescout import cli
-    from sourcescout.errors import ExtractionConfigError
+    from rqd.errors import ExtractionConfigError
 
     def no_client(cfg):
         raise ExtractionConfigError("Your credit balance is too low", fix="Add credits")

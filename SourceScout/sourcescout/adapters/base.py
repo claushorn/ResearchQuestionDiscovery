@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, NamedTuple
 
 if TYPE_CHECKING:
-    from sourcescout.http import Fetcher
+    from rqd.http import Fetcher
     from sourcescout.registry import Source
 
 

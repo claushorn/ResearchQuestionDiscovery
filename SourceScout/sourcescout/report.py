@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
 
-from sourcescout.timeutil import iso
+from rqd.timeutil import iso
 
 
 @dataclass

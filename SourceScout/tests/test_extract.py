@@ -10,8 +10,9 @@ import yaml
 from conftest import make_registry
 from sourcescout.adapters.base import RawItem
 from sourcescout.config import load_config
-from sourcescout.errors import ExtractionConfigError
-from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, recent_referenced_links,
+from rqd.claude_code import make_client
+from rqd.errors import ExtractionConfigError
+from sourcescout.extract import (ExtractContext, build_params, recent_referenced_links,
                                  run_extraction)
 from sourcescout.report import RunReport
 from sourcescout.store import Store, item_id_for
@@ -70,13 +71,6 @@ def test_build_params(ctx):
     assert "long-horizon planning" in user and "https://org.example/call" in user and 'tier="A"' in user
 
 
-def test_quote_in_text_normalises_quotes_and_whitespace():
-    assert quote_in_text('for "long-horizon  planning", which', TEXT)
-    assert not quote_in_text("the agency wants better planning", TEXT)
-    assert not quote_in_text("", TEXT)
-    assert quote_in_text("better forecasting.", "We need better\nforecasting\n.")
-
-
 def test_sync_writes_records(ctx):
     add_item(ctx)
     client = FakeClient([message({"candidates": [cand(), cand(pay="paraphrased funding")]})])
@@ -128,7 +122,7 @@ def test_make_client_without_credentials(ctx, monkeypatch, tmp_path):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     with pytest.raises(ExtractionConfigError):
-        make_client(ctx.cfg.model_copy(update={"backend": "api"}))
+        make_client("api")
 
 
 def test_links_are_numbered_and_relevant_links_resolved_by_code(ctx):

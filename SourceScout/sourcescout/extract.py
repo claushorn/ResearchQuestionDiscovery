@@ -1,12 +1,8 @@
 import logging
-import re
 import time
-import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-
-import shutil
 
 import anthropic
 import yaml
@@ -16,13 +12,14 @@ from pydantic import ValidationError
 
 from sourcescout.categories import Category
 from sourcescout.config import ExtractionCfg
-from sourcescout.claude_code import ClaudeCodeClient
-from sourcescout.errors import ExtractionConfigError, ItemExtractionError
+from rqd.claude_code import ClaudeCodeClient
+from rqd.errors import ExtractionConfigError, ItemExtractionError
+from rqd.quotes import quote_in_text
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.schema import EXTRACTION_SCHEMA, ExtractionResult, length_violations
 from sourcescout.store import Store, StoredItem
-from sourcescout.timeutil import iso, utcnow
+from rqd.timeutil import iso, utcnow
 
 log = logging.getLogger("sourcescout")
 MAX_LINKS = 50  # links shown to the model, numbered from 1
@@ -62,17 +59,7 @@ def build_params(cfg: ExtractionCfg, item: StoredItem, source: Source, category:
     }
 
 
-_QUOTES = str.maketrans({"“": '"', "”": '"', "„": '"', "‘": "'", "’": "'", "–": "-", "—": "-"})
 
-
-def _norm(s: str) -> str:
-    s = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", s).translate(_QUOTES))
-    return re.sub(r" ([.,;:!?)\]])", r"\1", s).strip()  # html_to_text puts inline tags on own lines
-
-
-def quote_in_text(quote: str, text: str) -> bool:
-    q = _norm(quote)
-    return bool(q) and q in _norm(text)
 
 
 @dataclass
@@ -85,17 +72,7 @@ class ExtractContext:
     run_id: str
 
 
-def make_client(cfg: ExtractionCfg):
-    if cfg.backend == "claude_code":
-        if shutil.which("claude") is None:
-            raise ExtractionConfigError("backend claude_code needs the `claude` CLI on PATH",
-                                        fix="Install Claude Code, or set extraction.backend: api in config.yaml")
-        return ClaudeCodeClient()
-    client = anthropic.Anthropic()
-    if client.api_key is None and client.auth_token is None and client.credentials is None:
-        raise ExtractionConfigError("No Anthropic credentials found",
-                                    fix="export ANTHROPIC_API_KEY=... (or run `ant auth login`)")
-    return client
+
 
 
 def _fail(ctx: ExtractContext, item: StoredItem, error: str) -> None:

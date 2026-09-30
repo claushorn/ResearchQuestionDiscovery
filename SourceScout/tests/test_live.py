@@ -6,12 +6,13 @@ from dotenv import load_dotenv
 
 from conftest import make_registry
 from sourcescout.config import load_config
-from sourcescout.extract import ExtractContext, make_client, run_extraction
-from sourcescout.http import Fetcher
+from rqd.claude_code import make_client
+from sourcescout.extract import ExtractContext, run_extraction
+from rqd.http import Fetcher
 from sourcescout.report import RunReport
 from sourcescout.scan import scan
 from sourcescout.store import Store
-from sourcescout.timeutil import utcnow
+from rqd.timeutil import utcnow
 
 pytestmark = pytest.mark.live
 load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
@@ -29,7 +30,7 @@ def test_live_grants_gov_extraction_within_budget(paths):
     ctx = ExtractContext(cfg.extraction, reg, store, report, paths.output, report.run_id)
     if cfg.extraction.backend == "api" and not os.environ.get("ANTHROPIC_API_KEY"):
         pytest.skip("backend api needs ANTHROPIC_API_KEY")
-    run_extraction(ctx, make_client(cfg.extraction), batch=False, limit=3)
+    run_extraction(ctx, make_client(cfg.extraction.backend), batch=False, limit=3)
     print(report.render(cfg.extraction.token_budget_per_candidate))
     st = report.extract["grants-gov-ml"]
     assert st.failed == 0, report.failures
