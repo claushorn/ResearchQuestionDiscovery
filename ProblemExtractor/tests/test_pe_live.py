@@ -13,7 +13,7 @@ pytestmark = pytest.mark.live
 PE_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_real_extraction_within_budget(tmp_path):
+def test_real_extraction_adds_labelled_expert_knowledge(tmp_path):
     root = tmp_path / "ProblemExtractor"
     root.mkdir()
     shutil.copy(PE_ROOT / "config.yaml", root / "config.yaml")
@@ -24,3 +24,6 @@ def test_real_extraction_within_budget(tmp_path):
     print(pe.report.render(cfg.extraction.token_budget))
     assert pe.report.failures == [] and pe.report.new == 1 and pe.report.unverified == 0
     assert pe.report.output_tokens <= cfg.extraction.token_budget * (1 + pe.report.retries)
+    rec = pe.problems.all()[0]
+    print(rec["current_state"], rec["failure"])
+    assert rec["current_state"]["known_solution_inferred"]  # high effort fills the gap the document leaves

@@ -44,7 +44,8 @@ def test_store_roundtrip_and_listing(tmp_path):
 def test_omitted_fields_default_to_not_stated_and_schema_is_structured_output_ready():
     out = PEOutput.model_validate({"precise_statement": "s", "desired_capability": "d", "why_it_matters": "w",
                                    "unsolved_explicit": False})
-    assert out.extracted()["current_state"] == {"known_solution": "not stated"} and out.merge_with is None
+    assert out.extracted()["current_state"] == {"known_solution": "not stated", "known_solution_inferred": ""}
+    assert out.merge_with is None
     assert PE_SCHEMA["additionalProperties"] is False and "merge_with" not in PE_SCHEMA["required"]
     with pytest.raises(ValidationError):
         PEOutput.model_validate({"desired_capability": "d", "why_it_matters": "w", "unsolved_explicit": False})
@@ -54,3 +55,15 @@ def test_model_facing_schema_is_flat_because_nested_objects_break_claude_p_tool_
     # measured 2026-09-30: 3/10 PE calls were rejected ("could not be parsed as JSON") inside nested objects
     assert all(p.get("type") != "object" and "$ref" not in p for p in PE_SCHEMA["properties"].values())
     assert "$defs" not in PE_SCHEMA
+
+
+def test_model_knowledge_is_stored_labelled_next_to_document_facts():
+    out = PEOutput.model_validate(pe_output() | {
+        "known_solution_inferred": "Sampling-based planners and MPC are standard for short horizons.",
+        "what_current_methods_cannot_do_inferred": "Guarantees over hour-long horizons with uncertain maps."})
+    rec = out.extracted()
+    assert rec["current_state"] == {"known_solution": "not stated",
+                                    "known_solution_inferred": "Sampling-based planners and MPC are standard for short horizons."}
+    assert rec["failure"]["what_current_methods_cannot_do_inferred"].startswith("Guarantees")
+    bare = PEOutput.model_validate(pe_output()).extracted()
+    assert bare["current_state"]["known_solution_inferred"] == ""

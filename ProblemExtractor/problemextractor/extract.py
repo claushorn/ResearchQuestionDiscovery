@@ -24,9 +24,9 @@ log = logging.getLogger("problemextractor")
 
 SYSTEM_PROMPT = """You turn one candidate problem from a source document into a precise problem record, and decide whether it is the same problem as one already on file.
 
-Use only the source document. Do not add knowledge from outside it, and do not judge novelty, value or feasibility.
+Document fields come only from the source document. Your own expertise goes only into the two *_inferred fields. Do not judge novelty, value or feasibility.
 
-Fields (each at most 60 words, plain technical language):
+Document fields (each at most 60 words, plain technical language):
 - precise_statement: the problem, precise enough that someone could tell whether a result solves it.
 - known_solution: what the document says is currently done or available; "not stated" if it does not say.
 - what_current_methods_cannot_do: what the document says current methods fail at; "not stated" if it does not say.
@@ -34,6 +34,10 @@ Fields (each at most 60 words, plain technical language):
 - why_it_matters: why the document says it matters (who needs it, stated scale, cost or funding).
 - unsolved_explicit: true only if the document itself says the problem is open, unsolved, a limitation or being sought; then explicit_evidence is a verbatim quote of at most 50 words, copied character for character, no ellipses.
 - unsolved_inferred: true if you consider it unsolved without an explicit statement in the document.
+
+Your expert knowledge (each at most 80 words; empty string if you are not confident; state it as your assessment of the current state of the art, not as a fact from the document):
+- known_solution_inferred: the methods, tools or results you know are currently used for this problem.
+- what_current_methods_cannot_do_inferred: what, to your knowledge, those methods still cannot do.
 
 Merging: the message lists existing problems as [id] statement. Set merge_with to one of those ids only if it is the same problem (the same desired capability and the same failure), not merely the same field. Otherwise null. merge_reason: one sentence."""
 
@@ -67,7 +71,7 @@ class PERunReport:
                  f"candidates processed: {self.processed}  new problems: {self.new}  merged: {self.merged}  "
                  f"unverified explicit quotes: {self.unverified}  structured-output retries: {self.retries}",
                  f"output tokens: {self.output_tokens}  per candidate: {f'{tpc:.0f}' if tpc is not None else 'n/a'}"
-                 + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (budget {budget})")]
+                 + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (limit {budget})")]
         for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges), ("FAILURES", self.failures)]:
             lines += ["", f"{title}: {len(entries)}"] + [f"  {x}" for x in entries]
         return "\n".join(lines)

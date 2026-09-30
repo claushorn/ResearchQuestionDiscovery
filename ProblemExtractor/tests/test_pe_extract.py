@@ -110,3 +110,15 @@ def test_structured_output_retries_are_counted(ctx, tmp_path):
     pe = ctx()
     run_extraction(pe, FakeClient([m]))
     assert pe.report.retries == 1
+
+
+def test_pe_uses_high_effort_with_a_higher_reported_limit(ctx, tmp_path):
+    seed(tmp_path / "SourceScout", [candidate(0), candidate(1, statement="An unrelated sensor calibration problem.")])
+    pe = ctx()
+    client = FakeClient([message(pe_output(), output_tokens=1900)])
+    run_extraction(pe, client, limit=1)
+    assert client.calls[0]["output_config"]["effort"] == "high"
+    assert pe.cfg.extraction.token_budget == 2000
+    assert "per candidate: 1900" in pe.report.render(2000) and "BUDGET VIOLATION" not in pe.report.render(2000)
+    assert "BUDGET VIOLATION (> 1500)" in pe.report.render(1500)
+    assert "known_solution_inferred" in client.calls[0]["system"][0]["text"]

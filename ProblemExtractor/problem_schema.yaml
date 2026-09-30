@@ -4,9 +4,11 @@ revision: 2                               # increments when another source is me
 problem:
   precise_statement: ...                  # <= 60 words, from the source document only
 current_state:
-  known_solution: ...                     # or "not stated"
+  known_solution: ...                     # from the document, or "not stated"
+  known_solution_inferred: ...            # the model's own state-of-the-art assessment ("" if not confident)
 failure:
-  what_current_methods_cannot_do: ...     # or "not stated"
+  what_current_methods_cannot_do: ...     # from the document, or "not stated"
+  what_current_methods_cannot_do_inferred: ...
 desired_capability: ...
 why_it_matters: ...
 unsolvedness:
