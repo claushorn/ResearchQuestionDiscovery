@@ -2,7 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from pe_testing import candidate, pe_output
-from problemextractor.records import ProblemStore, merge_into, new_record, problem_id_for
+from problemextractor.records import merge_into, new_record, problem_id_for
+from rqd.records import YamlStore
 from problemextractor.schema import PE_SCHEMA, PEOutput
 
 W = {"model": "m", "run_id": "R1", "output_tokens": 300, "at": "2026-09-30T13:00:00+00:00"}
@@ -34,9 +35,9 @@ def test_merge_appends_source_keeps_text_and_logs_extraction():
 
 
 def test_store_roundtrip_and_listing(tmp_path):
-    st = ProblemStore(tmp_path / "problems")
+    st = YamlStore(tmp_path / "problems")
     rec = new_record("prob-a", candidate(), PEOutput.model_validate(pe_output()), False, W)
-    st.save(rec)
+    st.save(rec, rec["problem_id"])
     assert st.load("prob-a") == rec and [r["problem_id"] for r in st.all()] == ["prob-a"]
 
 

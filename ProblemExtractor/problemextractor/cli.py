@@ -5,7 +5,7 @@ import yaml
 
 from problemextractor.config import DEFAULT_ROOT, PEPaths, load_config
 from problemextractor.extract import PEContext, run_extraction
-from problemextractor.records import ProblemStore
+from rqd.records import YamlStore
 from rqd.claude_code import make_client
 from rqd.cli import clean_errors, exclusive, load_repo_env, progress_to_stderr
 from rqd.errors import RqdError
@@ -47,7 +47,7 @@ def _best_payment(record: dict) -> str:
 @clean_errors
 def list_problems(ctx: typer.Context, sort: str = typer.Option("sources", help="sources | tier")):
     """One line per problem: id, number of sources, best tier, payment signal, statement."""
-    records = ProblemStore(PEPaths(ctx.obj).problems).all()
+    records = YamlStore(PEPaths(ctx.obj).problems).all()
     best_tier = {r["problem_id"]: min((s["tier"] for s in r["sources"]), key=_TIER.get) for r in records}
     key = (lambda r: (-len(r["sources"]), _TIER[best_tier[r["problem_id"]]])) if sort == "sources" else \
           (lambda r: (_TIER[best_tier[r["problem_id"]]], -len(r["sources"])))
@@ -61,7 +61,7 @@ def list_problems(ctx: typer.Context, sort: str = typer.Option("sources", help="
 @clean_errors
 def show(ctx: typer.Context, problem_id: str):
     """Print one problem record."""
-    store = ProblemStore(PEPaths(ctx.obj).problems)
+    store = YamlStore(PEPaths(ctx.obj).problems)
     if not store.exists(problem_id):
         raise RqdError(f"no problem {problem_id}", fix="See `uv run problemextractor list`")
     typer.echo(yaml.safe_dump(store.load(problem_id), sort_keys=False, allow_unicode=True))

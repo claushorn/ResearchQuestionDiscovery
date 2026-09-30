@@ -1,9 +1,4 @@
 """Problem records: ProblemExtractor/problems/<problem-id>.yaml (one per merged problem)."""
-import os
-from pathlib import Path
-
-import yaml
-
 from problemextractor.schema import PEOutput
 
 
@@ -38,27 +33,3 @@ def merge_into(record: dict, candidate: dict, out: PEOutput, extracted_with: dic
                                                     "reason": out.merge_reason, "extracted": out.extracted(),
                                                     "at": extracted_with["at"]}]}
     return record
-
-
-class ProblemStore:
-    def __init__(self, directory: Path):
-        self.dir = directory
-
-    def path(self, problem_id: str) -> Path:
-        return self.dir / f"{problem_id}.yaml"
-
-    def exists(self, problem_id: str) -> bool:
-        return self.path(problem_id).exists()
-
-    def load(self, problem_id: str) -> dict:
-        return yaml.safe_load(self.path(problem_id).read_text(encoding="utf-8"))
-
-    def save(self, record: dict) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        path = self.path(record["problem_id"])
-        tmp = path.with_suffix(".yaml.tmp")
-        tmp.write_text(yaml.safe_dump(record, sort_keys=False, allow_unicode=True), encoding="utf-8")
-        os.replace(tmp, path)
-
-    def all(self) -> list[dict]:
-        return [yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(self.dir.glob("prob-*.yaml"))]

@@ -35,3 +35,15 @@ def ni_output(**over) -> dict:
             "strongest_counterargument": "the core problem is solved",
             "confidence": 0.8}
     return base | over
+
+
+def problem_record(pid: str = "prob-abc-r1-0") -> dict:
+    return {"problem_id": pid, "revision": 1,
+            "problem": {"precise_statement": "Predict 3D protein structure from sequence at near-experimental accuracy."},
+            "current_state": {"known_solution": "not stated"}, "failure": {"what_current_methods_cannot_do": "not stated"},
+            "desired_capability": "atomic-accuracy structures", "why_it_matters": "drug design",
+            "unsolvedness": {"explicit": False, "explicit_evidence": "", "inferred": True, "evidence_verified": None},
+            "sources": [{"candidate_id": "cand-abc-r1-0", "source_id": "grants-gov-protein", "tier": "A",
+                         "url": "https://g.example/1", "title": "Call 1",
+                         "payment_signal": {"type": "grant", "stated": "$1M", "deadline": None}}],
+            "merge_log": [], "extracted_with": {"model": "m", "run_id": "R", "output_tokens": 500, "at": "t"}}

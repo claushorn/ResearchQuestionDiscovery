@@ -9,7 +9,8 @@ import anthropic
 import yaml
 
 from problemextractor.config import PEConfig, PEPaths
-from problemextractor.records import ProblemStore, merge_into, new_record, problem_id_for
+from problemextractor.records import merge_into, new_record, problem_id_for
+from rqd.records import YamlStore
 from problemextractor.schema import PE_SCHEMA, PEOutput
 from problemextractor.similarity import shortlist
 from problemextractor.state import PEState
@@ -76,7 +77,7 @@ class PERunReport:
 class PEContext:
     cfg: PEConfig
     paths: PEPaths
-    problems: ProblemStore
+    problems: YamlStore
     state: PEState
     ss_root: Path
     ss_store: Store
@@ -91,7 +92,7 @@ class PEContext:
             raise ConfigError(f"SourceScout store not found at {db}",
                               fix="Set sourcescout_root in ProblemExtractor/config.yaml, or run `sourcescout run` first")
         now = utcnow()
-        problems = ProblemStore(paths.problems)
+        problems = YamlStore(paths.problems)
         docs = {r["problem_id"]: _doc(r) for r in problems.all()}
         return cls(cfg, paths, problems, PEState(paths.db), ss_root, Store(db),
                    PERunReport(run_id or now.strftime("%Y%m%dT%H%M%SZ"), iso(now)), docs)
@@ -151,7 +152,7 @@ def process(ctx: PEContext, client, candidate: dict) -> None:
         out = out.model_copy(update={"merge_with": None})
     if out.merge_with is not None:
         record = merge_into(ctx.problems.load(out.merge_with), candidate, out, extracted_with)
-        ctx.problems.save(record)
+        ctx.problems.save(record, record["problem_id"])
         ctx.state.record(cid, out.merge_with, "merged", now)
         ctx.report.merged += 1
         return
@@ -159,7 +160,7 @@ def process(ctx: PEContext, client, candidate: dict) -> None:
     ctx.report.unverified += verified is False
     pid = problem_id_for(cid)
     record = new_record(pid, candidate, out, verified, extracted_with)
-    ctx.problems.save(record)
+    ctx.problems.save(record, record["problem_id"])
     ctx.docs[pid] = _doc(record)
     ctx.state.record(cid, pid, "new", now)
     ctx.report.new += 1

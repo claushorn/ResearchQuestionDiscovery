@@ -6,24 +6,9 @@ import pytest
 
 from rqd.claude_code import ClaudeCodeClient
 from rqd.errors import AgentError, ExtractionConfigError
+from rqd_testing import agent_result as result, stream, tool_use
 
 SCHEMA = {"type": "object", "properties": {"a": {"type": "string"}}, "required": ["a"], "additionalProperties": False}
-
-
-def tool_use(name, **inp):
-    return {"type": "assistant", "message": {"content": [{"type": "tool_use", "name": name, "input": inp}]}}
-
-
-def result(**kw):
-    base = {"type": "result", "subtype": "success", "is_error": False, "num_turns": 5, "duration_ms": 26044,
-            "total_cost_usd": 0.1257, "terminal_reason": "completed", "structured_output": {"a": "x"},
-            "usage": {"input_tokens": 2, "cache_creation_input_tokens": 900, "cache_read_input_tokens": 10036,
-                      "output_tokens": 1608}, "api_error_status": None, "result": None}
-    return base | kw
-
-
-def stream(*events):
-    return "\n".join(json.dumps(e) for e in [{"type": "system", "subtype": "init"}, *events]) + "\n"
 
 
 class Runner:
