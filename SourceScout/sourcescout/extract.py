@@ -214,6 +214,12 @@ def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
         while client.messages.batches.retrieve(batch_id).processing_status != "ended":
             sleep(ctx.cfg.batch_poll_seconds)
         results = list(client.messages.batches.results(batch_id))
+    except anthropic.NotFoundError as e:  # external: past the API's result retention, or another workspace
+        for item in ctx.store.items_in_batch(batch_id).values():
+            ctx.store.reset_pending(item.item_id)
+        ctx.report.failures.append({"source_id": "*", "item_id": "*",
+                                    "error": f"batch {batch_id} no longer available ({e}); its items were resubmitted"})
+        return
     except anthropic.APIError as e:
         _raise_if_not_transient(e)
         ctx.report.failures.append({"source_id": "*", "item_id": "*",
@@ -227,9 +233,9 @@ def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
         kind = r.result.type
         if kind == "succeeded":
             handle_message(ctx, item, r.result.message)
-        elif kind == "errored":
+        elif kind == "errored" and r.result.error.error.type == "invalid_request_error":
             _fail(ctx, item, f"batch errored: {r.result.error}")
-        else:  # canceled / expired: external, retry next submission
+        else:  # canceled / expired / server-side error: external, retry next submission
             ctx.store.reset_pending(item.item_id)
     for item in items.values():  # no result returned for these
         ctx.store.reset_pending(item.item_id)

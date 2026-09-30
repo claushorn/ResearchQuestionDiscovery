@@ -17,7 +17,15 @@ class RawItem:
 
 
 IsKnown = Callable[[str], bool]
-FetchFn = Callable[["Source", "Fetcher", IsKnown], list[RawItem]]
+# fetch(source, http, is_known, item_errors=None): per-item fetch failures are appended to item_errors
+# when a list is given (the source still succeeds); with None they raise SourceFetchError.
+FetchFn = Callable[..., list[RawItem]]
+
+
+def item_failed(item_errors: list[str] | None, url: str, e: Exception) -> None:
+    if item_errors is None:
+        raise e
+    item_errors.append(f"{url}: {e}")
 
 
 class Kind(NamedTuple):

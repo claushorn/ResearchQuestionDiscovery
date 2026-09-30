@@ -122,13 +122,16 @@ One class per `kind`, interface
 
 The SBIR.gov public API returned HTTP 403 on 2026-09-30; SBIR topics are scanned
 from the static `sbir.gov/topics` listing via `html_list`. Every kind accepts
-`title_include` / `title_exclude` regex params (deterministic pre-filter, e.g.
+`title_include` / `title_exclude` regex params (job-board sources without
+their own `title_include` use `config.yaml` `scan.job_title_include`) (deterministic pre-filter, e.g.
 to skip non-research job ads before any LLM call).
 
 Common HTTP layer: one shared client with a descriptive User-Agent,
 robots.txt check, per-host rate limit, timeout, and HTML→text conversion.
 Item text is truncated **only** by an explicit, logged per-source cap
-(`max_chars`), never silently.
+(`max_chars`), never silently. A failed fetch of one item page (html_list,
+full-text RSS) is recorded as an item error; the rest of the source is kept.
+Selectors and regexes in `params` are validated when the registry loads.
 
 ### 3.4 Store — `SourceScout/data/scout.db` (SQLite)
 
@@ -181,7 +184,12 @@ with `evidence_verified: false`; it is never silently accepted or dropped.
 
 **Batch resume.** Submitted items are marked `submitted` with their batch id;
 the next `extract --batch` first collects any such batch (expired/canceled
-items return to `pending`), so an interrupted wait loses nothing.
+items and server-side errors return to `pending`; `invalid_request_error`
+fails the item), so an interrupted wait loses nothing. A batch the API no
+longer returns (404, e.g. past result retention) has its items returned to
+`pending` and is reported. Every report shows item-state totals
+(pending/submitted/done/failed); `extract --retry-failed` returns failed
+items to `pending`.
 
 **Errors.** Per-item API refusal or schema failure → `extract_status: failed`
 with the error, listed in the run report. Auth/config errors raise a typed
@@ -227,7 +235,11 @@ extracted_with: {model, run_id, output_tokens}
 - Promotion: `candidate → active` on its first candidate; retired if none
   within its first `promote_within_scans = 5` scans. Active sources are retired
   after `max_consecutive_failures = 5` failed fetches or
-  `retire_zero_yield_active = 20` scans without a candidate. Every transition
+  `retire_zero_yield_active = 20` scans without a candidate. Only scans that
+  stored new or changed items count toward zero-yield retirement, so a stable
+  page (a CFP, an RFS list) is not retired merely for not changing. A scan
+  attempt (successful or not) sets `last_scanned`, so failing sources are
+  retried on their cadence. Every transition
   is logged in the run report; all three numbers are in `config.yaml`.
 
 ### 3.8 CLI

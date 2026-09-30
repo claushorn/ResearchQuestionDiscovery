@@ -13,7 +13,8 @@ http:
   user_agent: "SourceScout/0.1 (research source monitor)"
   timeout_s: 30
   min_interval_s_per_host: 2.0
+scan:
+  job_title_include: "(?i)research|scientist|machine learning|\\bml\\b|reinforcement|optimi[sz]ation|protein|decision|applied ai|member of technical staff"            # job_board sources without their own title_include
 discovery:
   max_fetches_per_run: 30
-  job_title_include: "(?i)research|scientist|machine learning|\\bml\\b|reinforcement|optimi[sz]ation|protein|decision|applied ai|member of technical staff"
   ignore_hosts: [twitter.com, x.com, linkedin.com, facebook.com, instagram.com, youtube.com, google.com, wikipedia.org, github.com, medium.com, t.co, bit.ly]

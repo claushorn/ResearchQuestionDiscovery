@@ -134,6 +134,15 @@ class Store:
     def reset_pending(self, item_id: str) -> None:
         self._set(item_id, "pending", None)
 
+    def status_counts(self) -> dict[str, int]:
+        rows = self._db.execute("SELECT extract_status, COUNT(*) AS n FROM items GROUP BY extract_status")
+        return {r["extract_status"]: r["n"] for r in rows}
+
+    def reset_failed(self) -> int:
+        with self._db:
+            return self._db.execute(
+                "UPDATE items SET extract_status='pending', extract_error=NULL WHERE extract_status='failed'").rowcount
+
     def links_first_seen_since(self, since: str) -> list[tuple[str, str]]:
         rows = self._db.execute("SELECT item_id, links FROM items WHERE first_seen >= ?", (since,))
         return [(link, r["item_id"]) for r in rows for link in json.loads(r["links"])]

@@ -63,10 +63,49 @@ def test_expired_goes_back_to_pending_and_errored_fails(ctx):
     a, b = [i.item_id for i in ctx.store.pending()]
     ctx.store.mark_submitted([a, b], "old")
     results = [SimpleNamespace(custom_id=a, result=SimpleNamespace(type="expired")),
-               SimpleNamespace(custom_id=b, result=SimpleNamespace(type="errored", error="invalid_request"))]
+               SimpleNamespace(custom_id=b, result=SimpleNamespace(type="errored", error=SimpleNamespace(
+                   type="error", error=SimpleNamespace(type="invalid_request_error", message="bad"))))]
     batches = FakeBatches({"old": results})
     # expired item is resubmitted in the same run and succeeds there
     run_extraction(ctx, client_with(batches), batch=True, sleep=lambda s: None)
     assert len(batches.created) == 1 and [r["custom_id"] for r in batches.created[0]] == [a]
     assert ctx.store.get(b).extract_status == "failed"
     assert ctx.store.get(a).extract_status == "done"
+
+
+def _api_err(cls, status):
+    import anthropic
+    import httpx2
+    return cls("gone", response=httpx2.Response(status, request=httpx2.Request("GET", "https://api.anthropic.com")), body=None)
+
+
+def test_unknown_submitted_batch_returns_items_to_pending(ctx):
+    import anthropic
+    add_item(ctx, "https://g.example/1")
+    [item] = ctx.store.pending()
+    ctx.store.mark_submitted([item.item_id], "expired-batch")
+
+    class Gone(FakeBatches):
+        def retrieve(self, batch_id):
+            if batch_id == "expired-batch":
+                raise _api_err(anthropic.NotFoundError, 404)
+            return super().retrieve(batch_id)
+
+    batches = Gone()
+    run_extraction(ctx, client_with(batches), batch=True, sleep=lambda s: None)
+    assert any("expired-batch" in f["error"] for f in ctx.report.failures)
+    assert len(batches.created) == 1 and ctx.store.get(item.item_id).extract_status == "done"
+
+
+def test_errored_invalid_request_fails_other_errors_retry(ctx):
+    add_item(ctx, "https://g.example/1")
+    add_item(ctx, "https://g.example/2")
+    a, b = [i.item_id for i in ctx.store.pending()]
+    ctx.store.mark_submitted([a, b], "old")
+    err = lambda t: SimpleNamespace(type="error", error=SimpleNamespace(type=t, message="m"))  # noqa: E731
+    results = [SimpleNamespace(custom_id=a, result=SimpleNamespace(type="errored", error=err("invalid_request_error"))),
+               SimpleNamespace(custom_id=b, result=SimpleNamespace(type="errored", error=err("overloaded_error")))]
+    batches = FakeBatches({"old": results})
+    run_extraction(ctx, client_with(batches), batch=True, sleep=lambda s: None)
+    assert ctx.store.get(a).extract_status == "failed"
+    assert [r["custom_id"] for r in batches.created[0]] == [b]

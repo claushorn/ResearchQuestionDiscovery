@@ -6,7 +6,8 @@ from sourcescout.registry import Source
 DETAIL_URL = "https://api.grants.gov/v1/api/fetchOpportunity"
 
 
-def fetch(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch(source: Source, http: Fetcher, is_known: IsKnown,
+          item_errors: list[str] | None = None) -> list[RawItem]:
     payload = {"keyword": source.params["keyword"],
                "oppStatuses": source.params.get("opp_statuses", "forecasted|posted"),
                "rows": int(source.params.get("rows", 50))}
@@ -32,7 +33,7 @@ def fetch(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
                 "",
                 desc,
             ])
-            items.append(RawItem(source.id, url, h["title"], h.get("openDate"), text, tuple(links)))
+            items.append(RawItem(source.id, url, h["title"] or "", h.get("openDate"), text, tuple(links)))
         return items
     except (KeyError, TypeError, ValueError) as e:
         raise _shape_error(source.url, e) from e

@@ -51,3 +51,13 @@ def test_links_first_seen_since(tmp_path):
     st.upsert(item(url="https://a.example/1", links=["https://jobs.lever.co/acme"]), T0, 100)
     st.upsert(item(url="https://a.example/2", links=["https://b.example"]), T1, 100)
     assert [l for l, _ in st.links_first_seen_since(T1)] == ["https://b.example"]
+
+
+def test_status_counts_and_retry_failed(tmp_path):
+    st = Store(tmp_path / "db.sqlite")
+    st.upsert(item(url="https://a.example/1"), T0, 100)
+    st.upsert(item(url="https://a.example/2"), T0, 100)
+    a, b = [i.item_id for i in st.pending()]
+    st.mark_failed(a, "boom")
+    assert st.status_counts() == {"failed": 1, "pending": 1}
+    assert st.reset_failed() == 1 and st.status_counts() == {"pending": 2}

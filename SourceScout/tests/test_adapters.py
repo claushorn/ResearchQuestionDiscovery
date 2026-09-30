@@ -116,3 +116,19 @@ def test_required_params_exposed():
     assert REQUIRED_PARAMS["grants_gov"] == ("keyword",)
     assert REQUIRED_PARAMS["html_list"] == ("link_selector",)
     assert set(REQUIRED_PARAMS) == set(KINDS)
+
+
+def test_greenhouse_null_title_becomes_empty_string():
+    data = {"jobs": [{"id": 1, "title": None, "absolute_url": "https://x.example/1", "content": ""}]}
+    url = "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true"
+    assert KINDS["greenhouse"].fetch(S("greenhouse", url), make_fetcher({f"GET {url}": data}), never)[0].title == ""
+
+
+def test_html_list_records_dead_item_and_keeps_others():
+    routes = {"GET https://sbir.example/topics": LIST,
+              "GET https://sbir.example/topics/2": "<html><head><title>Topic 2</title></head><body><main>Need RL</main></body></html>"}
+    src = S("html_list", "https://sbir.example/topics", link_selector='a[href^="/topics/"]')
+    errors: list[str] = []
+    items = KINDS["html_list"].fetch(src, make_fetcher(routes), never, errors)
+    assert [i.title for i in items] == ["Topic 2"]
+    assert len(errors) == 1 and "topics/1" in errors[0] and "HTTP 404" in errors[0]

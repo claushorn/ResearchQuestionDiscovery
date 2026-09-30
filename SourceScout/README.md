@@ -21,12 +21,14 @@ uv run sourcescout scan --tier A --force
 uv run sourcescout sources list
 uv run sourcescout sources check <id>   # dry fetch of one source
 uv run sourcescout report               # latest run report
+uv run sourcescout extract --retry-failed  # return failed items to pending
 ```
 
 ## Source kinds
 `rss` (params: `max_items`, `fetch_full`), `greenhouse`, `lever`, `ashby`, `grants_gov` (`keyword`, `rows`,
 `opp_statuses`), `html_list` (`link_selector`, `link_pattern`, `max_items`, `content_selector`),
-`page` (`content_selector`). Every kind accepts `title_include` / `title_exclude` regexes.
+`page` (`content_selector`). Every kind accepts `title_include` / `title_exclude` regexes; job boards without
+`title_include` use `scan.job_title_include` from `config.yaml`.
 
 ## Lifecycle
 Discovered sources start as `candidate`; promoted on their first candidate, retired after

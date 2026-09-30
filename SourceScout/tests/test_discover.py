@@ -11,14 +11,14 @@ NOW = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
 
 
 def test_job_board_patterns():
-    s = job_board_source("https://job-boards.greenhouse.io/acme/jobs/123", "item1", "(?i)research")
+    s = job_board_source("https://job-boards.greenhouse.io/acme/jobs/123", "item1")
     assert (s.id, s.kind, s.url, s.status, s.provenance, s.category) == (
         "greenhouse-acme", "greenhouse", "https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true",
         "candidate", "discovered_from:item1", "job_board")
-    assert s.params == {"title_include": "(?i)research"}
-    assert job_board_source("https://jobs.lever.co/acme/abc", "i", "x").url == "https://api.lever.co/v0/postings/acme?mode=json"
-    assert job_board_source("https://jobs.ashbyhq.com/acme", "i", "x").url == "https://api.ashbyhq.com/posting-api/job-board/acme"
-    assert job_board_source("https://example.com/jobs", "i", "x") is None
+    assert s.params == {}  # title filter comes from config scan.job_title_include
+    assert job_board_source("https://jobs.lever.co/acme/abc", "i").url == "https://api.lever.co/v0/postings/acme?mode=json"
+    assert job_board_source("https://jobs.ashbyhq.com/acme", "i").url == "https://api.ashbyhq.com/posting-api/job-board/acme"
+    assert job_board_source("https://example.com/jobs", "i") is None
 
 
 def test_find_feed_and_blog_like():

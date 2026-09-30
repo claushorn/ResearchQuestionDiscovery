@@ -70,3 +70,36 @@ def test_report_budget_and_roundtrip(paths):
     assert again.extract["a"].output_tokens == 1400 and RunReport.latest(paths.runs) == path
     text = again.render(500)
     assert "BUDGET VIOLATIONS" in text and "a" in text
+
+
+def test_failed_scan_records_attempt_time(paths):
+    reg = make_registry(paths, [page_src("bad", "https://b.example/p")])
+    run_scan(reg, Store(paths.db), {"GET https://b.example/p": httpx.Response(500)})
+    assert reg.get("bad").last_scanned is not None and not reg.get("bad").due(NOW)
+
+
+def test_zero_yield_counts_only_scans_with_new_content(paths):
+    reg = make_registry(paths, [page_src("cfp", "https://a.example/p")])
+    store = Store(paths.db)
+    routes = {"GET https://a.example/p": PAGE.format(t="T", b="v1")}
+    run_scan(reg, store, routes)
+    run_scan(reg, store, routes)  # unchanged: must not count toward retirement
+    assert reg.get("cfp").yield_.scans == 2 and reg.get("cfp").yield_.scans_since_candidate == 1
+
+
+def test_job_board_uses_config_title_filter_when_source_has_none(paths):
+    reg = make_registry(paths, [page_src("jb", "https://a.example/p") | {"category": "job_board"}])
+    report = RunReport.new(NOW)
+    scan(reg, Store(paths.db), make_fetcher({"GET https://a.example/p": PAGE.format(t="Account Executive", b="x")}),
+         report, now=NOW, max_item_chars=1000, force=True, job_title_include="(?i)research")
+    assert report.scan["jb"].filtered == 1
+
+
+def test_item_errors_are_recorded_in_report(paths):
+    reg = make_registry(paths, [{"id": "l", "name": "l", "category": "tech_blog", "kind": "html_list",
+                                 "url": "https://s.example/t", "params": {"link_selector": "a"}}])
+    routes = {"GET https://s.example/t": '<a href="/1">1</a><a href="/2">2</a>',
+              "GET https://s.example/2": "<html><body>ok</body></html>"}
+    report = run_scan(reg, Store(paths.db), routes)
+    assert report.scan["l"].new == 1 and report.scan["l"].item_errors == 1 and report.scan["l"].error is None
+    assert any("s.example/1" in f["error"] for f in report.failures)

@@ -80,3 +80,15 @@ def test_scannable_filters(paths):
     assert {s.id for s in reg.scannable(NOW, force=True)} == {"due", "fresh"}
     assert [s.id for s in reg.scannable(NOW, source_id="retired")] == ["retired"]
     assert reg.scannable(NOW, tier="A") == []
+
+
+@pytest.mark.parametrize("params, needle", [
+    ({"link_selector": "a[href^=/topics/]"}, "invalid CSS selector"),
+    ({"link_selector": "a", "link_pattern": "("}, "invalid regex"),
+    ({"link_selector": "a", "content_selector": "::bad"}, "invalid CSS selector"),
+])
+def test_registry_rejects_bad_selector_or_link_pattern(paths, params, needle):
+    kinds = KINDS | {"html_list": ("link_selector",)}
+    with pytest.raises(RegistryError) as e:
+        make_registry(paths, [src(kind="html_list", params=params)], kinds)
+    assert needle in str(e.value) and "s1" in str(e.value)

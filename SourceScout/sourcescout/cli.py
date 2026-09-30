@@ -62,6 +62,7 @@ def main(ctx: typer.Context, root: Path = typer.Option(DEFAULT_ROOT, "--root", h
 
 def _finish(env: Env, report: RunReport) -> None:
     report.lifecycle += apply_lifecycle(env.registry, env.config.lifecycle)
+    report.item_states = env.store.status_counts()
     env.registry.save()
     path = report.save(env.paths.runs)
     typer.echo(report.render(env.config.extraction.token_budget_per_candidate))
@@ -70,7 +71,8 @@ def _finish(env: Env, report: RunReport) -> None:
 
 def _scan(env: Env, report: RunReport, now: datetime, **filters) -> None:
     run_scan(env.registry, env.store, env.http, report, now=now,
-             max_item_chars=env.config.extraction.max_item_chars, **filters)
+             max_item_chars=env.config.extraction.max_item_chars,
+             job_title_include=env.config.scan.job_title_include, **filters)
 
 
 def _extract(env: Env, report: RunReport, batch: bool, limit: int | None) -> None:
@@ -98,12 +100,17 @@ def scan(ctx: typer.Context, source: str = typer.Option(None, help="Scan only th
 @app.command()
 @clean_errors
 def extract(ctx: typer.Context, batch: bool = typer.Option(True, "--batch/--sync"),
-            limit: int = typer.Option(None, help="Max items to extract")):
+            limit: int = typer.Option(None, help="Max items to extract"),
+            retry_failed: bool = typer.Option(False, "--retry-failed", help="Return failed items to pending first")):
     """Extract candidates from pending items (Batches API by default)."""
     env = _env(ctx.obj)
     report = RunReport.new(utcnow())
-    _extract(env, report, batch, limit)
-    _finish(env, report)
+    if retry_failed:
+        typer.echo(f"{env.store.reset_failed()} failed items returned to pending")
+    try:
+        _extract(env, report, batch, limit)
+    finally:
+        _finish(env, report)
 
 
 @app.command()
@@ -123,10 +130,12 @@ def run(ctx: typer.Context, batch: bool = typer.Option(True, "--batch/--sync"),
     """scan -> extract -> discover -> lifecycle -> report."""
     env, now = _env(ctx.obj), utcnow()
     report = RunReport.new(now)
-    _scan(env, report, now)
-    _extract(env, report, batch, limit)
-    _discover(env, report, now)
-    _finish(env, report)
+    try:
+        _scan(env, report, now)
+        _extract(env, report, batch, limit)
+        _discover(env, report, now)
+    finally:  # the scan part of the report survives an aborted extraction
+        _finish(env, report)
 
 
 @app.command()

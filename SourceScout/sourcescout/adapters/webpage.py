@@ -3,7 +3,7 @@ from urllib.parse import urljoin
 
 from selectolax.parser import HTMLParser
 
-from sourcescout.adapters.base import IsKnown, RawItem
+from sourcescout.adapters.base import IsKnown, RawItem, item_failed
 from sourcescout.errors import SourceFetchError
 from sourcescout.http import Fetcher, html_to_text
 from sourcescout.registry import Source
@@ -23,12 +23,14 @@ def page_item(source: Source, url: str, html: str) -> RawItem:
     return RawItem(source.id, url, title, None, text, tuple(links))
 
 
-def fetch_page(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch_page(source: Source, http: Fetcher, is_known: IsKnown,
+               item_errors: list[str] | None = None) -> list[RawItem]:
     resp = http.get(source.url)
     return [page_item(source, str(resp.url), resp.text)]
 
 
-def fetch_list(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch_list(source: Source, http: Fetcher, is_known: IsKnown,
+               item_errors: list[str] | None = None) -> list[RawItem]:
     p = source.params
     resp = http.get(source.url)
     urls = []
@@ -44,5 +46,8 @@ def fetch_list(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem
     for url in list(dict.fromkeys(urls))[: int(p.get("max_items", 30))]:
         if is_known(url):
             continue
-        items.append(page_item(source, url, http.get(url).text))
+        try:
+            items.append(page_item(source, url, http.get(url).text))
+        except SourceFetchError as e:
+            item_failed(item_errors, url, e)
     return items

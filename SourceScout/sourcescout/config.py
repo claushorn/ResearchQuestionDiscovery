@@ -33,9 +33,12 @@ class HttpCfg(Strict):
     min_interval_s_per_host: float
 
 
+class ScanCfg(Strict):
+    job_title_include: str  # default title filter for job_board sources without their own title_include
+
+
 class DiscoveryCfg(Strict):
     max_fetches_per_run: int
-    job_title_include: str
     ignore_hosts: list[str]
 
 
@@ -43,6 +46,7 @@ class Config(Strict):
     extraction: ExtractionCfg
     lifecycle: LifecycleCfg
     http: HttpCfg
+    scan: ScanCfg
     discovery: DiscoveryCfg
 
 

@@ -22,13 +22,13 @@ _JOB_PATTERNS = [
 _FEED_TYPES = ("application/rss+xml", "application/atom+xml")
 
 
-def job_board_source(url: str, origin: str, title_include: str) -> Source | None:
+def job_board_source(url: str, origin: str) -> Source | None:
     for pattern, kind, api in _JOB_PATTERNS:
         m = pattern.match(url)
         if m:
             token = m.group(1)
             return Source(id=f"{kind}-{token.lower()}", name=f"{token} ({kind})", category="job_board", kind=kind,
-                          url=api.format(t=token), params={"title_include": title_include},
+                          url=api.format(t=token),
                           status="candidate", provenance=f"discovered_from:{origin}")
     return None
 
@@ -53,7 +53,7 @@ def _ignored(host: str, cfg: DiscoveryCfg) -> bool:
 def discover(registry: Registry, http: Fetcher, cfg: DiscoveryCfg, refs: list[tuple[str, str]],
              links: list[tuple[str, str]], report: RunReport, unmapped_path: Path) -> None:
     for url, origin in refs + links:
-        s = job_board_source(url, origin, cfg.job_title_include)
+        s = job_board_source(url, origin)
         if s and registry.find(s.id) is None:
             registry.add(s)
             report.discovered.append(s.id)
@@ -64,7 +64,7 @@ def discover(registry: Registry, http: Fetcher, cfg: DiscoveryCfg, refs: list[tu
     fetches = 0
     for url, origin in refs:
         host = urlsplit(url).netloc.lower()
-        if not host or _ignored(host, cfg) or host in known_hosts or job_board_source(url, origin, "") or url in known_unmapped:
+        if not host or _ignored(host, cfg) or host in known_hosts or job_board_source(url, origin) or url in known_unmapped:
             continue
         if fetches >= cfg.max_fetches_per_run:
             report.discovery_errors.append(f"fetch cap {cfg.max_fetches_per_run} reached; remaining references skipped")

@@ -45,3 +45,20 @@ def test_env_file_next_to_scout_dir_is_loaded(paths, monkeypatch):
     assert runner.invoke(app, ["--root", str(paths.root), "sources", "list"]).exit_code == 0
     import os
     assert os.environ.get("SOURCESCOUT_TEST_VAR") == "from-dotenv"
+
+
+def test_run_saves_report_even_when_extraction_aborts(paths, monkeypatch):
+    from sourcescout import cli
+    from sourcescout.errors import ExtractionConfigError
+
+    def no_client():
+        raise ExtractionConfigError("Your credit balance is too low", fix="Add credits")
+    monkeypatch.setattr(cli, "make_client", no_client)
+    res = runner.invoke(app, ["--root", str(paths.root), "run", "--sync"])
+    assert res.exit_code == 1 and "credit balance" in res.output
+    assert list((paths.root / "data" / "runs").glob("*.json"))
+
+
+def test_extract_retry_failed_flag_exists():
+    res = runner.invoke(app, ["extract", "--help"])
+    assert "--retry-failed" in res.output

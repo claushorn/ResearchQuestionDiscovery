@@ -20,19 +20,21 @@ def _shape_error(url: str, e: Exception) -> SourceFetchError:
     return SourceFetchError(f"{url}: unexpected response shape ({e!r})")
 
 
-def fetch_greenhouse(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch_greenhouse(source: Source, http: Fetcher, is_known: IsKnown,
+                     item_errors: list[str] | None = None) -> list[RawItem]:
     data = _json(http.get(source.url), source.url)
     try:
         items = []
         for j in data["jobs"]:
             text, links = html_to_text(html.unescape(j.get("content") or ""), j["absolute_url"])
-            items.append(RawItem(source.id, j["absolute_url"], j["title"], j.get("updated_at"), text, tuple(links)))
+            items.append(RawItem(source.id, j["absolute_url"], j["title"] or "", j.get("updated_at"), text, tuple(links)))
         return items
     except (KeyError, TypeError) as e:
         raise _shape_error(source.url, e) from e
 
 
-def fetch_lever(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch_lever(source: Source, http: Fetcher, is_known: IsKnown,
+                item_errors: list[str] | None = None) -> list[RawItem]:
     data = _json(http.get(source.url), source.url)
     try:
         items = []
@@ -43,16 +45,17 @@ def fetch_lever(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawIte
             parts.append(j.get("additionalPlain"))
             created = j.get("createdAt")
             published = datetime.fromtimestamp(int(created) / 1000, timezone.utc).isoformat() if created else None
-            items.append(RawItem(source.id, j["hostedUrl"], j["text"], published, "\n\n".join(p for p in parts if p)))
+            items.append(RawItem(source.id, j["hostedUrl"], j["text"] or "", published, "\n\n".join(p for p in parts if p)))
         return items
     except (KeyError, TypeError, ValueError) as e:
         raise _shape_error(source.url, e) from e
 
 
-def fetch_ashby(source: Source, http: Fetcher, is_known: IsKnown) -> list[RawItem]:
+def fetch_ashby(source: Source, http: Fetcher, is_known: IsKnown,
+                item_errors: list[str] | None = None) -> list[RawItem]:
     data = _json(http.get(source.url), source.url)
     try:
-        return [RawItem(source.id, j["jobUrl"], j["title"], j.get("publishedAt"), j.get("descriptionPlain") or "")
+        return [RawItem(source.id, j["jobUrl"], j["title"] or "", j.get("publishedAt"), j.get("descriptionPlain") or "")
                 for j in data["jobs"] if j.get("isListed", True)]
     except (KeyError, TypeError) as e:
         raise _shape_error(source.url, e) from e

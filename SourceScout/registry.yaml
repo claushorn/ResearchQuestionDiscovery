@@ -86,201 +86,151 @@ sources:
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-openai
   name: openai jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/openai
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-cohere
   name: cohere jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/cohere
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-isomorphiclabs
   name: isomorphic-labs jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/isomorphiclabs/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-generatebiomedicines
   name: generate-biomedicines jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/generatebiomedicines/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-recursionpharmaceuticals
   name: recursion jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/recursionpharmaceuticals/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-insitro
   name: insitro jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/insitro
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-absci
   name: absci jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/absci
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-cradlebio
   name: cradle jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/cradlebio
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-profluent
   name: profluent jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/profluent/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-waymo
   name: waymo jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/waymo/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-nuro
   name: nuro jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/nuro/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-instacart
   name: instacart jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/instacart/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-doordashusa
   name: doordash jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/doordashusa/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-flexport
   name: flexport jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/flexport/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-krakentech
   name: kraken-octopus jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/krakentech
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-janestreet
   name: jane-street jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/janestreet/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-wehrtyou
   name: hudson-river-trading jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/wehrtyou/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-databricks
   name: databricks jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/databricks/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-scaleai
   name: scale-ai jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/scaleai/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: lever-palantir
   name: palantir jobs
   category: job_board
   kind: lever
   url: https://api.lever.co/v0/postings/palantir?mode=json
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-physicalintelligence
   name: physical-intelligence jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/physicalintelligence
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-chaidiscovery
   name: chai-discovery jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/chaidiscovery
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: ashby-latentlabs
   name: latent-labs jobs
   category: job_board
   kind: ashby
   url: https://api.ashbyhq.com/posting-api/job-board/latentlabs
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: greenhouse-arcinstitute
   name: arc-institute jobs
   category: job_board
   kind: greenhouse
   url: https://boards-api.greenhouse.io/v1/boards/arcinstitute/jobs?content=true
-  params:
-    title_include: (?i)research|scientist|machine learning|\bml\b|reinforcement|optimi[sz]ation|protein|decision|applied
-      ai|member of technical staff
+  params: {}
 - id: yc-rfs
   name: YC Requests for Startups
   category: investor_thesis
