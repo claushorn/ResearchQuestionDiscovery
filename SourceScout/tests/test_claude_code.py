@@ -81,3 +81,13 @@ def test_make_client_claude_code_requires_cli(ctx, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)
     with pytest.raises(ExtractionConfigError, match="claude"):
         make_client("claude_code")
+
+
+def test_num_turns_exposed_so_structured_output_retries_are_countable(ctx):
+    add_item(ctx)
+    [item] = ctx.store.pending()
+    params = build_params(ctx.cfg, item, ctx.registry.get("g"), ctx.registry.categories["gov_solicitation"])
+    out = json.loads(result({"candidates": []}))
+    out["num_turns"] = 3
+    msg = ClaudeCodeClient(runner=FakeRunner([json.dumps(out)])).messages.create(**params)
+    assert msg.num_turns == 3

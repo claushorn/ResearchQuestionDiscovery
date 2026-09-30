@@ -90,6 +90,7 @@ class _Messages:
         u = out.get("usage") or {}
         return SimpleNamespace(
             stop_reason="end_turn",
+            num_turns=out.get("num_turns") or 0,  # > 2: the structured output was rejected and rewritten
             content=[SimpleNamespace(type="text", text=json.dumps(out["structured_output"]))],
             usage=SimpleNamespace(input_tokens=u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0),
                                   output_tokens=u.get("output_tokens", 0),

@@ -101,3 +101,12 @@ def test_tier_a_first_and_limit(ctx, tmp_path):
     client = FakeClient([message(pe_output())])
     run_extraction(ctx(), client, limit=1)
     assert "Call 1" in client.calls[0]["messages"][0]["content"]
+
+
+def test_structured_output_retries_are_counted(ctx, tmp_path):
+    seed(tmp_path / "SourceScout", [candidate(0)])
+    m = message(pe_output())
+    m.num_turns = 3  # claude -p rewrote the structured output once
+    pe = ctx()
+    run_extraction(pe, FakeClient([m]))
+    assert pe.report.retries == 1

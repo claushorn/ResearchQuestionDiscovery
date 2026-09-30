@@ -29,10 +29,10 @@ def candidate(n: int = 0, statement: str = "Long-horizon planning for warehouse 
 def pe_output(merge_with=None, statement="Plan long-horizon robot tasks under uncertainty.", explicit=True,
               evidence="remains an open challenge", known="not stated") -> dict:
     return {"merge_with": merge_with, "merge_reason": "same capability" if merge_with else "new",
-            "problem": {"precise_statement": statement}, "current_state": {"known_solution": known},
-            "failure": {"what_current_methods_cannot_do": "plan beyond short horizons"},
+            "precise_statement": statement, "known_solution": known,
+            "what_current_methods_cannot_do": "plan beyond short horizons",
             "desired_capability": "reliable long-horizon plans", "why_it_matters": "the agency funds it",
-            "unsolvedness": {"explicit": explicit, "explicit_evidence": evidence if explicit else "", "inferred": False}}
+            "unsolved_explicit": explicit, "explicit_evidence": evidence if explicit else "", "unsolved_inferred": False}
 
 
 def seed(ss_root: Path, candidates: list[dict], text: str = ITEM_TEXT) -> None:

@@ -41,10 +41,15 @@ def test_store_roundtrip_and_listing(tmp_path):
 
 
 def test_omitted_fields_default_to_not_stated_and_schema_is_structured_output_ready():
-    out = PEOutput.model_validate({"problem": {"precise_statement": "s"}, "desired_capability": "d",
-                                   "why_it_matters": "w", "unsolvedness": {"explicit": False}})
-    assert out.current_state.known_solution == "not stated" and out.merge_with is None
+    out = PEOutput.model_validate({"precise_statement": "s", "desired_capability": "d", "why_it_matters": "w",
+                                   "unsolved_explicit": False})
+    assert out.extracted()["current_state"] == {"known_solution": "not stated"} and out.merge_with is None
     assert PE_SCHEMA["additionalProperties"] is False and "merge_with" not in PE_SCHEMA["required"]
     with pytest.raises(ValidationError):
-        PEOutput.model_validate({"problem": {}, "desired_capability": "d", "why_it_matters": "w",
-                                 "unsolvedness": {"explicit": False}})
+        PEOutput.model_validate({"desired_capability": "d", "why_it_matters": "w", "unsolved_explicit": False})
+
+
+def test_model_facing_schema_is_flat_because_nested_objects_break_claude_p_tool_calls():
+    # measured 2026-09-30: 3/10 PE calls were rejected ("could not be parsed as JSON") inside nested objects
+    assert all(p.get("type") != "object" and "$ref" not in p for p in PE_SCHEMA["properties"].values())
+    assert "$defs" not in PE_SCHEMA

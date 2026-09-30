@@ -26,13 +26,13 @@ SYSTEM_PROMPT = """You turn one candidate problem from a source document into a 
 Use only the source document. Do not add knowledge from outside it, and do not judge novelty, value or feasibility.
 
 Fields (each at most 60 words, plain technical language):
-- problem.precise_statement: the problem, precise enough that someone could tell whether a result solves it.
-- current_state.known_solution: what the document says is currently done or available; "not stated" if it does not say.
-- failure.what_current_methods_cannot_do: what the document says current methods fail at; "not stated" if it does not say.
+- precise_statement: the problem, precise enough that someone could tell whether a result solves it.
+- known_solution: what the document says is currently done or available; "not stated" if it does not say.
+- what_current_methods_cannot_do: what the document says current methods fail at; "not stated" if it does not say.
 - desired_capability: what a solution must be able to do, as the document describes it.
 - why_it_matters: why the document says it matters (who needs it, stated scale, cost or funding).
-- unsolvedness.explicit: true only if the document itself says the problem is open, unsolved, a limitation or being sought; then explicit_evidence is a verbatim quote of at most 50 words, copied character for character, no ellipses.
-- unsolvedness.inferred: true if you consider it unsolved without an explicit statement in the document.
+- unsolved_explicit: true only if the document itself says the problem is open, unsolved, a limitation or being sought; then explicit_evidence is a verbatim quote of at most 50 words, copied character for character, no ellipses.
+- unsolved_inferred: true if you consider it unsolved without an explicit statement in the document.
 
 Merging: the message lists existing problems as [id] statement. Set merge_with to one of those ids only if it is the same problem (the same desired capability and the same failure), not merely the same field. Otherwise null. merge_reason: one sentence."""
 
@@ -45,6 +45,7 @@ class PERunReport:
     new: int = 0
     merged: int = 0
     unverified: int = 0
+    retries: int = 0  # claude -p structured-output rewrites (num_turns > 2); 0 on the api backend
     output_tokens: int = 0
     input_tokens: int = 0
     invalid_merges: list[str] = field(default_factory=list)
@@ -63,7 +64,7 @@ class PERunReport:
         tpc = self.tokens_per_candidate()
         lines = [f"Run {self.run_id} (started {self.started})",
                  f"candidates processed: {self.processed}  new problems: {self.new}  merged: {self.merged}  "
-                 f"unverified explicit quotes: {self.unverified}",
+                 f"unverified explicit quotes: {self.unverified}  structured-output retries: {self.retries}",
                  f"output tokens: {self.output_tokens}  per candidate: {f'{tpc:.0f}' if tpc is not None else 'n/a'}"
                  + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (budget {budget})")]
         for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges), ("FAILURES", self.failures)]:
@@ -140,6 +141,7 @@ def process(ctx: PEContext, client, candidate: dict) -> None:
         raise ItemExtractionError(f"api: {e}") from e
     ctx.report.output_tokens += message.usage.output_tokens
     ctx.report.input_tokens += message.usage.input_tokens
+    ctx.report.retries += max(0, getattr(message, "num_turns", 0) - 2)
     out: PEOutput = parse_structured(message, PEOutput)
     now = iso(utcnow())
     extracted_with = {"model": ctx.cfg.extraction.model, "run_id": ctx.report.run_id,
@@ -153,7 +155,7 @@ def process(ctx: PEContext, client, candidate: dict) -> None:
         ctx.state.record(cid, out.merge_with, "merged", now)
         ctx.report.merged += 1
         return
-    verified = quote_in_text(out.unsolvedness.explicit_evidence, item.text) if out.unsolvedness.explicit else None
+    verified = quote_in_text(out.explicit_evidence, item.text) if out.unsolved_explicit else None
     ctx.report.unverified += verified is False
     pid = problem_id_for(cid)
     record = new_record(pid, candidate, out, verified, extracted_with)
