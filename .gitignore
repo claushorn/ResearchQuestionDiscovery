@@ -4,3 +4,4 @@ __pycache__/
 SourceScout/data/
 .worktrees/
 .superpowers/
+.env
