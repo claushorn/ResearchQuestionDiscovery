@@ -1,0 +1,23 @@
+source_id: src-18492
+
+source:
+  url: ...
+  title: ...
+  date: ...
+
+candidate_problem:
+  statement: ...
+
+why_interesting:
+  ...
+
+explicit_unsolved_signal:
+  present: true
+  evidence: ...
+
+technical_area:
+  ...
+
+entities:
+  organizations: [...]
+  researchers: [...]

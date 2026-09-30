@@ -1,0 +1,60 @@
+id: opp-2026-0042
+
+title: "Can X be learned despite Y?"
+
+domain:
+  - machine_learning
+  - sequential_decision
+
+source:
+  type: paper
+  url: ...
+  authors: ...
+  organization: ...
+  discovered_at: ...
+
+problem:
+  statement: ...
+  affected_party: ...
+  current_solution: ...
+  limitation: ...
+  evidence:
+    - type: paper_statement
+      quote: ...
+      location: ...
+
+unsolved_claim:
+  claim: ...
+  confidence: 0.72
+  evidence_for: []
+  evidence_against: []
+
+economic_value:
+  beneficiary: ...
+  estimated_value: ...
+  urgency: ...
+  willingness_to_pay: unknown
+
+technical:
+  difficulty: 8
+  novelty: 8
+  tractability: 6
+  required_compute: medium
+  required_data: medium
+
+user_fit:
+  expertise: 9
+  prior_work_overlap: 9
+  infrastructure_available: 8
+  interest: 8
+
+hypotheses: []
+experiments: []
+competitors: []
+related_work: []
+
+status: discovered
+
+next_action:
+  type: investigate
+  owner: agent
