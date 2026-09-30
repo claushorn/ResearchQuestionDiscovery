@@ -1,23 +1,34 @@
-source_id: src-18492
-
+# One candidate record per file: SourceScout/output/YYYY-MM/<candidate_id>.yaml
+source_id: grants-gov-ml            # registry.yaml id
+item_id: 3f2a9c0d1e4b5a6f           # store id (sha256 of canonical URL, 16 hex)
+candidate_id: cand-3f2a9c0d1e4b5a6f-r1-0
+revision: 1                         # increments when the source item's content changes
 source:
   url: ...
   title: ...
   date: ...
-
+  tier: A
+  category: gov_solicitation
 candidate_problem:
-  statement: ...
-
-why_interesting:
-  ...
-
+  statement: ...                    # <= 60 words
+why_interesting: ...                # one sentence, <= 30 words, stated not analysed
 explicit_unsolved_signal:
   present: true
-  evidence: ...
-
-technical_area:
-  ...
-
+  evidence: "<verbatim quote>"      # <= 50 words
+payment_signal:                     # raw, as stated; not scored
+  type: grant                       # prize | grant | contract | hiring | investor_thesis | none_stated
+  stated: "up to $1.5M"
+  evidence: "<verbatim quote>"
+  deadline: 2026-12-01              # or null
+technical_area: [...]               # <= 3 tags
 entities:
   organizations: [...]
   researchers: [...]
+referenced_urls: [...]
+evidence_verified: true             # every non-empty quote found verbatim in the source text
+length_violations: []               # fields exceeding their word limit
+extracted_with:
+  model: claude-opus-5-5
+  run_id: 20260930T120000Z
+  output_tokens: 410                # item output tokens / candidates from that item
+  at: 2026-09-30T12:00:00+00:00
