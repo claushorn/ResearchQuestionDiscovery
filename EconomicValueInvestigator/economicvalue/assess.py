@@ -87,6 +87,7 @@ def assess_one(ctx: EVContext, problem_id: str, gate_result: str) -> dict:
                       "failure_consequence": out.failure_consequence, "deployment": out.deployment,
                       "buyer": out.buyer},
         "factors": est["factors"],
+        "potential_value_models": est["potential_value_models"],
         "evidence": [e.model_dump() | {"verification": v} for e, v in zip(out.evidence, verification)],
         "warnings": est["warnings"],
         "search": search_summary(res.tool_calls, a.min_searches),

@@ -16,12 +16,15 @@ Search, never answer from memory: run at least {min_searches} WebSearch queries 
 
 evidence: every page you rely on, with a verbatim quote of at most 40 words copied character for character from that page (never from a search snippet, no ellipses), its kind, and company when the page is about a specific company.
 
-Numbers and money go only in estimates, never in the text answers unless they are quoted in evidence. Each estimate row: quantity (affected_units, frequency_per_year, cost_per_occurrence, addressable_share, current_cost, failure_cost), low, high, unit (a currency code like USD for money, e.g. USD/year for yearly costs; addressable_share as a fraction 0-1), and its basis:
+Numbers and money go only in estimates, never in the text answers unless they are quoted in evidence. Each estimate row: quantity (affected_units, frequency_per_year, cost_per_occurrence, buyer_count, annual_spend_per_buyer, addressable_share, current_cost, failure_cost), low, high, unit (a currency code like USD for money, e.g. USD/year for yearly amounts; annual_spend_per_buyer must be per year; addressable_share as a fraction 0-1), and its basis:
 - source: the number of the evidence entry whose quote contains the supporting figure;
 - analogous_company: the number of an evidence entry about a comparable company (company filled in);
 - explicit_assumption: evidence 0 and the assumption written out.
 If you have no basis for a number, leave it out: unknown is better than a guess. Several rows per quantity are allowed.
-potential_value is computed from affected_units x frequency_per_year x cost_per_occurrence x addressable_share by the caller; do not state it.
+The caller computes potential value from two models; give the factors of whichever fits (both if you can):
+- incident model, for recurring operational problems: affected_units x frequency_per_year x cost_per_occurrence x addressable_share;
+- market model, for problems bought as products, services or research programmes: buyer_count (organisations that would buy) x annual_spend_per_buyer (what one buyer spends or budgets per year on this, e.g. from funding programmes, tool budgets, comparable companies) x addressable_share.
+Do not state the potential value yourself.
 
 willingness_to_pay: money already committed to this problem (awards, prizes, budgets, salaries), each with the number of the evidence entry that shows it."""
 

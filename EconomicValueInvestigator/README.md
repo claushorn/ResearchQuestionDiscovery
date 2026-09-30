@@ -20,7 +20,11 @@ uv run economicvalue show <problem-id>
 - **No invented amounts:** amounts exist only as estimates with a basis — `source` or `analogous_company`
   (evidence page fetched and quote verified by code) or `explicit_assumption` (stated). Invalid rows are
   rejected and listed in `warnings`; a quantity without a valid basis is `unknown`.
-  `potential_value` = affected_units × frequency_per_year × cost_per_occurrence × addressable_share, computed by
-  code, `unknown` if any factor is unknown, status = weakest factor (`supported` / `assumption_only`).
+  Potential value (USD/year) is computed by code from two models: **incident** = affected_units ×
+  frequency_per_year × cost_per_occurrence × addressable_share (recurring operational problems) and **market** =
+  buyer_count × annual_spend_per_buyer × addressable_share (problems bought as products, services or research
+  programmes). A model is `unknown` if any factor is; its status is the weakest factor's. `potential_value` shows
+  the better-supported model, or the range spanning both when equally supported (`model: incident|market|both`);
+  both are kept in `potential_value_models`.
   Amounts in the text answers that appear in no verified quote are flagged (`warnings.unsupported_amounts`).
 - Output: `assessments/<problem-id>.yaml` (format: `economic_value_schema.yaml`); transcripts in `data/transcripts/`.

@@ -8,8 +8,14 @@ import re
 from economicvalue.money import parse_amounts
 from economicvalue.schema import TEXT_FIELDS, EstimateRow, EVOutput
 
-FACTORS = ("affected_units", "frequency_per_year", "cost_per_occurrence", "addressable_share")
-_MONEY = ("cost_per_occurrence", "current_cost", "failure_cost")
+MODELS = {  # potential value (USD/year) = product of the factors; computed here, never by the model
+    "incident": ("affected_units", "frequency_per_year", "cost_per_occurrence", "addressable_share"),
+    "market": ("buyer_count", "annual_spend_per_buyer", "addressable_share"),
+}
+FACTORS = tuple(dict.fromkeys(q for qs in MODELS.values() for q in qs))
+_MONEY = ("cost_per_occurrence", "annual_spend_per_buyer", "current_cost", "failure_cost")
+_YEAR = ("year", "yr", "annum")
+_RANK = {"supported": 2, "assumption_only": 1}
 _MONEY_UNIT = re.compile(r"([A-Za-z]{3})\s*(?:/\s*(\w+)|\s+per\s+(\w+))?")
 UNKNOWN = "unknown"
 
@@ -35,6 +41,8 @@ def _check(row: EstimateRow, out: EVOutput, verification: list[str], rates: dict
         rate, unit, period = mu
         if row.quantity == "cost_per_occurrence" and period:
             raise ValueError(f"cost_per_occurrence must be per occurrence, not {row.unit!r}")
+        if row.quantity == "annual_spend_per_buyer" and (period or "").lower() not in _YEAR:
+            raise ValueError(f"annual_spend_per_buyer must be per year, not {row.unit!r}")
         low, high = low * rate, high * rate
     elif row.quantity == "addressable_share" and not (0 <= low <= high <= 1):
         raise ValueError(f"share {low}..{high} outside [0, 1]")
@@ -84,17 +92,30 @@ def build(out: EVOutput, verification: list[str], rates: dict[str, float]) -> di
                 "basis": [r[3] for r in rows]}
 
     factors = {q: estimate(q) for q in FACTORS}
-    if any(f == UNKNOWN for f in factors.values()):
-        potential = UNKNOWN
-    else:
+
+    def model(name: str):
+        fs = [factors[q] for q in MODELS[name]]
+        if any(f == UNKNOWN for f in fs):
+            return UNKNOWN
         low = high = 1.0
-        for f in factors.values():
+        for f in fs:
             low, high = low * f["low"], high * f["high"]
-        potential = {"low": low, "high": high, "unit": "USD/year",
-                     "status": "assumption_only" if any(f["status"] == "assumption_only" for f in factors.values())
-                     else "supported",
-                     "computed_from": "affected_units × frequency_per_year × cost_per_occurrence × addressable_share",
-                     "basis": [b for f in factors.values() for b in f["basis"]]}
+        return {"low": low, "high": high, "unit": "USD/year",
+                "status": min((f["status"] for f in fs), key=_RANK.get),
+                "computed_from": " × ".join(MODELS[name]), "basis": [b for f in fs for b in f["basis"]]}
+
+    models = {name: model(name) for name in MODELS}
+    known = {n: m for n, m in models.items() if m != UNKNOWN}
+    if not known:
+        potential = UNKNOWN
+    elif len(known) == 1 or len({_RANK[m["status"]] for m in known.values()}) > 1:
+        name, best = max(known.items(), key=lambda kv: _RANK[kv[1]["status"]])  # stronger support wins
+        potential = {**best, "model": name}
+    else:  # equal support: report the range spanning both rather than picking one
+        ms = list(known.values())
+        potential = {"low": min(m["low"] for m in ms), "high": max(m["high"] for m in ms), "unit": "USD/year",
+                     "status": ms[0]["status"], "computed_from": " | ".join(m["computed_from"] for m in ms),
+                     "basis": [b for m in ms for b in m["basis"]], "model": "both"}
 
     verified_quotes = [e.quote for e, v in zip(out.evidence, verification) if v == "verified"]
     known = _amounts_supported_by(verified_quotes)
@@ -111,4 +132,5 @@ def build(out: EVOutput, verification: list[str], rates: dict[str, float]) -> di
         else:
             warnings["unverified_wtp"].append(f"{s.signal} (evidence {s.evidence})")
     return {"factors": factors, "current_cost": estimate("current_cost"), "failure_cost": estimate("failure_cost"),
-            "potential_value": potential, "willingness_to_pay": wtp, "warnings": warnings}
+            "potential_value": potential, "potential_value_models": models, "willingness_to_pay": wtp,
+            "warnings": warnings}

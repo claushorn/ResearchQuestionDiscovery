@@ -114,9 +114,13 @@ Lists of flat objects:
    `low`/`high` of the quantity = min/max over its valid rows.
 4. Units: `cost_per_occurrence`, `current_cost`, `failure_cost` must be in `USD` (or a unit listed in
    `currency_rates_usd`, converted by code); otherwise `unknown` + warning. `addressable_share` in [0, 1].
-5. `potential_value` (USD/year) = affected_units × frequency_per_year × cost_per_occurrence ×
-   addressable_share, computed by code from low and from high; `unknown` if any factor is unknown;
-   status = weakest factor status; basis = union of factor bases.
+5. Two value models (USD/year), each computed by code from low and from high, `unknown` if any factor is
+   unknown, status = weakest factor, basis = union of factor bases:
+   **incident** = affected_units × frequency_per_year × cost_per_occurrence × addressable_share (recurring
+   operational problems); **market** = buyer_count × annual_spend_per_buyer (must be per year) ×
+   addressable_share (problems bought as products, services or research programmes; added 2026-09-30 after the
+   incident model stayed unknown for a research-programme problem). `potential_value` = the better-supported
+   model; equal support → the range spanning both (`model: both`). Both are kept in `potential_value_models`.
 6. Amount guard: every currency amount found in the free-text answers must appear in some verified
    evidence quote; otherwise it is listed in `warnings.unsupported_amounts`.
 7. `willingness_to_pay` entries keep only those whose evidence is verified; the rest go to warnings.

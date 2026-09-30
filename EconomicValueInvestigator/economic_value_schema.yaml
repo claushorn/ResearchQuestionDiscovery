@@ -7,13 +7,17 @@ economic_value:
   pain: {score: 8, reasoning: ...}               # 1-10
   current_cost: <estimate> | unknown
   failure_cost: <estimate> | unknown
-  potential_value: <estimate> | unknown           # computed by code from factors, USD/year
+  potential_value: <estimate> + {model: incident | market | both} | unknown   # computed by code, USD/year
   buyer: CTO / Head_of_Research
   deployment: {assessment: plausible | difficult | implausible | unknown, barriers: ...}
   urgency: {level: low | medium | high | unknown, reasoning: ...}
   willingness_to_pay: [{signal: ..., url: ..., quote: ...}]   # only verified evidence
 questions: {who_has_problem, how_frequently, how_expensive, current_practice, failure_consequence, deployment, buyer}
-factors: {affected_units: <estimate>|unknown, frequency_per_year: ..., cost_per_occurrence: ..., addressable_share: ...}
+factors: {affected_units: <estimate>|unknown, frequency_per_year: ..., cost_per_occurrence: ..., addressable_share: ...,
+          buyer_count: ..., annual_spend_per_buyer: ...}            # annual_spend_per_buyer in USD/year
+potential_value_models:                                      # both models, each computed by code or unknown
+  incident: <estimate> | unknown    # affected_units × frequency_per_year × cost_per_occurrence × addressable_share
+  market: <estimate> | unknown      # buyer_count × annual_spend_per_buyer × addressable_share
 evidence: [{title, url, kind, company, quote, verification: verified | quote_not_found | unfetchable}]
 warnings: {rejected_estimates: [...], unsupported_amounts: [...], unverified_wtp: [...]}
 search: {searches, fetches, queries, sufficient}

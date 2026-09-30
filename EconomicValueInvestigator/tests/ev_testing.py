@@ -43,3 +43,9 @@ FACTORS = [row("affected_units", 1000, 2000, "companies", evidence=1),
            row("cost_per_occurrence", 40000, 40000, "USD", basis="analogous_company", evidence=2),
            row("addressable_share", 0.05, 0.1, "share", basis="explicit_assumption", evidence=0,
                assumption="5-10% adopt a solution")]
+
+
+MARKET = [row("buyer_count", 24, 50, "vendors", evidence=1),
+          row("annual_spend_per_buyer", 100_000, 500_000, "USD/year", basis="analogous_company", evidence=2),
+          row("addressable_share", 0.05, 0.2, "share", basis="explicit_assumption", evidence=0,
+              assumption="5-20% of vendors adopt")]

@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from rqd.structured import api_schema
 
 Quantity = Literal["affected_units", "frequency_per_year", "cost_per_occurrence", "addressable_share",
-                   "current_cost", "failure_cost"]
+                   "buyer_count", "annual_spend_per_buyer", "current_cost", "failure_cost"]
 
 
 class _M(BaseModel):

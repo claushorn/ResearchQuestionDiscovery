@@ -102,3 +102,38 @@ def test_willingness_to_pay_keeps_only_verified_evidence():
     assert r["willingness_to_pay"] == [{"signal": "Acme pays for tooling", "url": "https://e.example/2",
                                         "quote": "incidents cost us $40,000 each"}]
     assert r["warnings"]["unverified_wtp"] == ["rumoured budget (evidence 5)"]
+
+
+from ev_testing import MARKET  # noqa: E402
+
+
+def test_market_model_computed_by_code():
+    r = b(MARKET)
+    m = r["potential_value_models"]["market"]
+    assert m["low"] == pytest.approx(24 * 100_000 * 0.05) and m["high"] == pytest.approx(50 * 500_000 * 0.2)
+    assert m["status"] == "assumption_only" and r["potential_value_models"]["incident"] == "unknown"
+    assert r["potential_value"]["model"] == "market" and r["potential_value"]["low"] == m["low"]
+
+
+def test_annual_spend_must_be_per_year():
+    rows = [MARKET[0], row("annual_spend_per_buyer", 1, 2, "USD", basis="analogous_company", evidence=2), MARKET[2]]
+    r = b(rows)
+    assert r["potential_value_models"]["market"] == "unknown" and "per year" in r["warnings"]["rejected_estimates"][0]
+
+
+def test_stronger_model_wins_and_equal_support_spans_both():
+    supported_share = [row("addressable_share", 0.05, 0.2, "share", evidence=1)]
+    strong_market = MARKET[:2] + supported_share          # market: supported
+    weak_incident = FACTORS[:3]                            # incident: shares the (now supported) share, but has assumptions
+    r = b(strong_market + weak_incident)
+    assert r["potential_value_models"]["market"]["status"] == "supported"
+    assert r["potential_value_models"]["incident"]["status"] == "assumption_only"
+    assert r["potential_value"]["model"] == "market"
+    both = b(MARKET + FACTORS)                             # both assumption_only
+    inc, mkt = both["potential_value_models"]["incident"], both["potential_value_models"]["market"]
+    assert both["potential_value"]["model"] == "both"
+    assert both["potential_value"]["low"] == min(inc["low"], mkt["low"]) and both["potential_value"]["high"] == max(inc["high"], mkt["high"])
+
+
+def test_no_model_means_unknown():
+    assert b([])["potential_value"] == "unknown"
