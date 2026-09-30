@@ -2,6 +2,7 @@
 from collections import Counter
 
 from economicvalue.money import parse_amounts, to_usd
+from rqd.timeutil import deadline_summary, today
 
 _TIER_ORDER = "ABCDE"
 _COMMITTED = ("grant", "prize", "contract")
@@ -24,7 +25,7 @@ def score_problem(record: dict, rates: dict[str, float], defaults: dict[str, str
             committed += [high for _, high in usd]
         elif ps["type"] == "hiring":
             salaries += [x for pair in usd for x in pair]
-    deadlines = sorted(str(s["payment_signal"]["deadline"]) for s in record["sources"] if s["payment_signal"].get("deadline"))
+    next_deadline, all_passed = deadline_summary([s["payment_signal"].get("deadline") for s in record["sources"]], today())
     return {"problem_id": record["problem_id"], "statement": record["problem"]["precise_statement"],
             "sources": len(record["sources"]), "distinct_source_ids": len({s["source_id"] for s in record["sources"]}),
             "best_tier": min((s["tier"] for s in record["sources"]),
@@ -32,7 +33,7 @@ def score_problem(record: dict, rates: dict[str, float], defaults: dict[str, str
             "payment_types": dict(sorted(Counter(s["payment_signal"]["type"] for s in record["sources"]).items())),
             "max_committed_usd": max(committed) if committed else None,
             "salary_range_usd": [min(salaries), max(salaries)] if salaries else None,
-            "next_deadline": deadlines[0] if deadlines else None, "unparsed_amounts": unparsed}
+            "next_deadline": next_deadline, "all_deadlines_passed": all_passed, "unparsed_amounts": unparsed}
 
 
 def score_all(records: list[dict], rates: dict[str, float], defaults: dict[str, str]) -> list[dict]:

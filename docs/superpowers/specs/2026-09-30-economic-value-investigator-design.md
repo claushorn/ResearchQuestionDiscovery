@@ -69,7 +69,9 @@ For every `ProblemExtractor/problems/*.yaml`:
   with `currency: null` and excluded from USD totals;
 - convert with **fixed, visible rates** from `config.yaml` (`currency_rates_usd`, dated); no network;
 - components: `sources`, `distinct_source_ids`, `best_tier`, `payment_types`, `max_committed_usd`
-  (largest award/prize/contract amount), `salary_range_usd`, `next_deadline`, `unparsed_amounts`.
+  (largest award/prize/contract amount), `salary_range_usd`, `next_deadline` (next upcoming),
+  `all_deadlines_passed` (every stated deadline passed; flagged `DUE PASSED`, not dropped: user decision
+  2026-09-30), `unparsed_amounts`.
 
 Output: `data/scores.yaml` (derived, regenerated each run) and a table on stdout sorted by
 `max_committed_usd`, then `sources`. No opaque combined score: components are shown side by side.

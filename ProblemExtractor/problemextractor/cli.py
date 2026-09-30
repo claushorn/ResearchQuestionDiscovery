@@ -6,6 +6,7 @@ import yaml
 from problemextractor.config import DEFAULT_ROOT, PEPaths, load_config
 from problemextractor.extract import PEContext, run_extraction
 from rqd.records import YamlStore
+from rqd.timeutil import deadline_summary, today
 from rqd.claude_code import make_client
 from rqd.cli import clean_errors, exclusive, hold_lock, load_repo_env, progress_to_stderr
 from rqd.errors import RqdError
@@ -55,8 +56,9 @@ def list_problems(ctx: typer.Context, sort: str = typer.Option("sources", help="
     key = (lambda r: (-len(r["sources"]), _TIER[best_tier[r["problem_id"]]])) if sort == "sources" else \
           (lambda r: (_TIER[best_tier[r["problem_id"]]], -len(r["sources"])))
     for r in sorted(records, key=key):
+        _, passed = deadline_summary([s["payment_signal"].get("deadline") for s in r["sources"]], today())
         typer.echo(f"{r['problem_id']}  src={len(r['sources'])}  tier={best_tier[r['problem_id']]}  "
-                   f"pay={_best_payment(r)}  {r['problem']['precise_statement'][:100]}")
+                   f"pay={_best_payment(r)}{'  DUE PASSED' if passed else ''}  {r['problem']['precise_statement'][:100]}")
     typer.echo(f"{len(records)} problems")
 
 

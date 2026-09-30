@@ -48,7 +48,8 @@ def score(ctx: typer.Context):
     for s in scores:
         salary = "-" if not s["salary_range_usd"] else f"{_usd(s['salary_range_usd'][0])}-{_usd(s['salary_range_usd'][1])}"
         typer.echo(f"{s['problem_id']}  committed_usd={_usd(s['max_committed_usd'])}  salary_usd={salary}  "
-                   f"src={s['sources']}  tier={s['best_tier']}  deadline={s['next_deadline'] or '-'}  {s['statement'][:70]}")
+                   f"src={s['sources']}  tier={s['best_tier']}  deadline={s['next_deadline'] or '-'}"
+                   f"{'  DUE PASSED' if s['all_deadlines_passed'] else ''}  {s['statement'][:70]}")
     typer.echo(f"{len(scores)} problems (fixed currency rates from config.yaml)")
 
 

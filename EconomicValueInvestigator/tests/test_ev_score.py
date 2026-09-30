@@ -29,3 +29,14 @@ def test_problem_without_money():
 def test_unknown_tier_does_not_crash():
     s = score_problem(problem(sources=[source("x", "Z", "grant", "$1M")]), RATES, DEFAULTS)
     assert s["best_tier"] == "Z" and s["max_committed_usd"] == 1_000_000
+
+
+def test_deadlines_next_upcoming_and_all_passed(monkeypatch):
+    import economicvalue.score as sc
+    from datetime import date
+    monkeypatch.setattr(sc, "today", lambda: date(2026, 9, 30))
+    s = score_problem(problem(sources=[source("sbir-topics", "A", "contract", "", "2026-07-10")]), RATES, DEFAULTS)
+    assert s["next_deadline"] is None and s["all_deadlines_passed"] is True
+    s = score_problem(problem(sources=[source("a", "A", "grant", "", "2026-07-10"), source("b", "A", "grant", "", "2027-01-15")]),
+                      RATES, DEFAULTS)
+    assert s["next_deadline"] == "2027-01-15" and s["all_deadlines_passed"] is False

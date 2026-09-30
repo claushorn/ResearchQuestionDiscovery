@@ -7,13 +7,15 @@ explicit unsolvedness quotes verified against the source text. It does not judge
 
 ```bash
 uv run problemextractor run [--limit N]     # process new SourceScout candidates (tier A first)
-uv run problemextractor list [--sort tier]   # id, #sources, best tier, payment signal, statement
+uv run problemextractor list [--sort tier]   # id, #sources, best tier, payment signal, DUE PASSED flag, statement
 uv run problemextractor show <problem-id>
 ```
 
 - **Merging:** a TF-IDF shortlist of the 5 most similar existing problems is offered to the model, which may
   merge the candidate into one of them (reason logged in `merge_log`, the candidate's own extraction kept).
   An id outside the shortlist is reported and treated as a new problem.
+- **Deadlines:** calls stay collected after their proposal due date (still officially open, often re-solicited);
+  `list` marks problems whose stated deadlines have all passed with `DUE PASSED`.
 - **Idempotent:** processed candidates are remembered in `data/pe.db`; failed ones are retried next run.
 - **Compute:** effort `high` and a higher limit than SourceScout: `extraction.token_budget` 2000 output
   tokens/candidate (measured at high effort: median 1297, p90 1752), reported per run with retries. Runs on the Claude
