@@ -23,13 +23,15 @@ class ExtractStat:
     failed: int = 0
     candidates: int = 0
     output_tokens: int = 0
+    empty_output_tokens: int = 0  # spent on items that yielded no candidate
     input_tokens: int = 0
     cache_read_tokens: int = 0
     unverified: int = 0
     length_violations: int = 0
 
     def tokens_per_candidate(self) -> float | None:
-        return self.output_tokens / self.candidates if self.candidates else None
+        """Budget metric: output tokens of items that produced candidates, per candidate."""
+        return (self.output_tokens - self.empty_output_tokens) / self.candidates if self.candidates else None
 
 
 @dataclass
@@ -60,7 +62,7 @@ class RunReport:
                if (tpc := st.tokens_per_candidate()) is not None and tpc > budget}
         cands = sum(st.candidates for st in self.extract.values())
         if cands:
-            total = sum(st.output_tokens for st in self.extract.values()) / cands
+            total = sum(st.output_tokens - st.empty_output_tokens for st in self.extract.values()) / cands
             if total > budget:
                 out["ALL"] = total
         return out
@@ -91,12 +93,12 @@ class RunReport:
                          f"{s.item_errors:>7}  {s.error or ''}")
         lines += ["", "EXTRACT"]
         lines.append(f"  {'source':32} {'items':>5} {'fail':>4} {'cand':>4} {'out_tok':>8} {'tok/cand':>8} "
-                     f"{'cache_rd':>8} {'unverif':>7} {'len_viol':>8}")
+                     f"{'empty_tok':>9} {'cache_rd':>8} {'unverif':>7} {'len_viol':>8}")
         for sid, e in sorted(self.extract.items()):
             tpc = e.tokens_per_candidate()
             tpc_s = f"{tpc:.0f}" if tpc is not None else "n/a"
             lines.append(f"  {sid:32} {e.items:>5} {e.failed:>4} {e.candidates:>4} {e.output_tokens:>8} "
-                         f"{tpc_s:>8} {e.cache_read_tokens:>8} {e.unverified:>7} {e.length_violations:>8}")
+                         f"{tpc_s:>8} {e.empty_output_tokens:>9} {e.cache_read_tokens:>8} {e.unverified:>7} {e.length_violations:>8}")
         violations = self.budget_violations(budget)
         lines += ["", f"BUDGET VIOLATIONS (> {budget} output tokens/candidate): "
                   + (", ".join(f"{k}={v:.0f}" for k, v in violations.items()) or "none")]
