@@ -14,7 +14,7 @@ from sourcescout.categories import load_categories
 from sourcescout.config import DEFAULT_ROOT, Config, Paths, load_config
 from sourcescout.discover import discover as run_discover
 from sourcescout.errors import ScoutError, SourceFetchError
-from sourcescout.extract import ExtractContext, make_client, recent_references, run_extraction
+from sourcescout.extract import ExtractContext, make_client, productive_item_links, run_extraction
 from sourcescout.http import Fetcher
 from sourcescout.lifecycle import apply_lifecycle
 from sourcescout.registry import Health, Registry
@@ -115,7 +115,7 @@ def _extract(env: Env, report: RunReport, batch: bool | None, limit: int | None)
 
 
 def _discover(env: Env, report: RunReport, since: datetime) -> None:
-    run_discover(env.registry, env.http, env.config.discovery, recent_references(env.paths.output, since),
+    run_discover(env.registry, env.http, env.config.discovery, productive_item_links(env.paths.output, env.store, since),
                  env.store.links_first_seen_since(iso(since)), report, env.paths.unmapped)
 
 

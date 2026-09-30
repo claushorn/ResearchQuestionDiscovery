@@ -21,10 +21,9 @@ payment_signal:                     # raw, as stated; not scored
   evidence: "<verbatim quote>"
   deadline: 2026-12-01              # or null
 technical_area: [...]               # <= 3 tags
-entities:
+entities:                           # <= 3 organisations, <= 3 researchers
   organizations: [...]
   researchers: [...]
-referenced_urls: [...]
 evidence_verified: true             # every non-empty quote found verbatim in the source text
 length_violations: []               # fields exceeding their word limit
 extracted_with:

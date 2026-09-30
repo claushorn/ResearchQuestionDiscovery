@@ -11,7 +11,7 @@ from conftest import make_registry
 from sourcescout.adapters.base import RawItem
 from sourcescout.config import load_config
 from sourcescout.errors import ExtractionConfigError
-from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, recent_references,
+from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, productive_item_links,
                                  run_extraction)
 from sourcescout.report import RunReport
 from sourcescout.store import Store, item_id_for
@@ -30,8 +30,7 @@ def cand(unsolved='for "long-horizon planning", which remains an open challenge'
     return {"statement": "Long-horizon planning methods.", "why_interesting": "Agency funds it.",
             "explicit_unsolved_signal": {"present": True, "evidence": unsolved},
             "payment_signal": {"type": "grant", "stated": "$1.5M", "evidence": pay, "deadline": "2026-12-01"},
-            "technical_area": ["planning"], "entities": {"organizations": ["NSF"], "researchers": []},
-            "referenced_urls": ["https://org.example/call"]}
+            "technical_area": ["planning"], "entities": {"organizations": ["NSF"], "researchers": []}}
 
 
 class FakeClient:
@@ -132,8 +131,20 @@ def test_make_client_without_credentials(ctx, monkeypatch, tmp_path):
         make_client(ctx.cfg.model_copy(update={"backend": "api"}))
 
 
-def test_recent_references(ctx):
-    add_item(ctx)
-    run_extraction(ctx, FakeClient([message({"candidates": [cand()]})]), batch=False)
-    assert recent_references(ctx.output_dir, NOW - timedelta(days=1)) == [
-        ("https://org.example/call", item_id_for("https://g.example/1"))]
+def test_productive_item_links_come_from_the_store(ctx):
+    add_item(ctx, "https://g.example/1")
+    add_item(ctx, "https://g.example/2")
+    run_extraction(ctx, FakeClient([message({"candidates": [cand()]}), message({"candidates": []})]), batch=False)
+    got = productive_item_links(ctx.output_dir, ctx.store, NOW - timedelta(days=1))
+    productive = [i for i in (item_id_for("https://g.example/1"), item_id_for("https://g.example/2"))
+                  if list(ctx.output_dir.glob(f"*/cand-{i}-*.yaml"))]
+    assert got == [("https://org.example/call", productive[0])]
+
+
+def test_tokens_of_empty_items_are_reported_separately(ctx):
+    add_item(ctx, "https://g.example/1")
+    add_item(ctx, "https://g.example/2")
+    run_extraction(ctx, FakeClient([message({"candidates": []}, output_tokens=80),
+                                    message({"candidates": [cand()]}, output_tokens=450)]), batch=False)
+    st = ctx.report.extract["g"]
+    assert (st.output_tokens, st.empty_output_tokens, st.tokens_per_candidate()) == (530, 80, 450)

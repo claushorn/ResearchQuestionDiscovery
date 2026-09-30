@@ -40,8 +40,7 @@ Rules:
 - payment_signal: type is one of prize, grant, contract, hiring, investor_thesis, none_stated. A job posting for a role whose work is to solve the problem is hiring. stated is the amount, headcount or funding as written (empty string if none). evidence is a verbatim quote of at most 50 words supporting it; an empty string when type is none_stated. deadline is the stated submission or closing date as YYYY-MM-DD, or null.
 - Quotes are copied character for character from the document text: no ellipses, no paraphrase, no merged fragments.
 - technical_area: at most 3 short tags, e.g. "reinforcement learning", "protein design".
-- entities: organisations and named researchers mentioned in connection with the problem.
-- referenced_urls: at most 5 URLs from the document's link list that point to the official call, challenge, dataset, or the organisation's own pages about the problem."""
+- entities: at most 3 organisations and 3 named researchers most directly connected to the problem."""
 
 
 def render_item(item: StoredItem, source: Source, category: Category) -> str:
@@ -162,7 +161,6 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
             "payment_signal": c.payment_signal.model_dump(),
             "technical_area": c.technical_area,
             "entities": c.entities.model_dump(),
-            "referenced_urls": c.referenced_urls,
             "evidence_verified": verified,
             "length_violations": violations,
             "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now)},
@@ -175,6 +173,8 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
     if result.candidates:
         source.yield_.candidates += len(result.candidates)
         source.yield_.scans_since_candidate = 0
+    else:
+        stat.empty_output_tokens += usage.output_tokens
     ctx.store.mark_done(item.item_id)
 
 
@@ -232,16 +232,19 @@ def run_extraction(ctx: ExtractContext, client, *, batch: bool, limit: int | Non
         ctx.registry.save()
 
 
-def recent_references(output_dir: Path, since: datetime) -> list[tuple[str, str]]:
-    out = []
+def productive_item_links(output_dir: Path, store: Store, since: datetime) -> list[tuple[str, str]]:
+    """(link, item_id) for every stored link of items that yielded candidates since `since` (discovery input)."""
     month = since.strftime("%Y-%m")
+    item_ids = []
     for path in sorted(output_dir.glob("*/*.yaml")):
         if path.parent.name < month:
             continue
         rec = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if datetime.fromisoformat(rec["extracted_with"]["at"]) >= since:
-            out += [(url, rec["item_id"]) for url in rec.get("referenced_urls") or []]
-    return out
+        if datetime.fromisoformat(rec["extracted_with"]["at"]) >= since and rec["item_id"] not in item_ids:
+            item_ids.append(rec["item_id"])
+    return [(link, iid) for iid in item_ids if (item := store.get(iid)) for link in item.links]
+
+
 def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
     try:
         while (b := client.messages.batches.retrieve(batch_id)).processing_status != "ended":

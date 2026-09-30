@@ -11,21 +11,23 @@ class _M(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+# Fields that are often empty are optional: `claude -p` validates structured output after generation and
+# makes the model rewrite the whole JSON when a required field is omitted (measured: ~2x output tokens).
 class UnsolvedSignal(_M):
     present: bool
-    evidence: str
+    evidence: str = ""
 
 
 class PaymentSignal(_M):
     type: Literal["prize", "grant", "contract", "hiring", "investor_thesis", "none_stated"]
-    stated: str
-    evidence: str
-    deadline: str | None
+    stated: str = ""
+    evidence: str = ""
+    deadline: str | None = None
 
 
 class Entities(_M):
     organizations: list[str]
-    researchers: list[str]
+    researchers: list[str] = Field(default_factory=list)
 
 
 class ExtractedCandidate(_M):
@@ -35,7 +37,6 @@ class ExtractedCandidate(_M):
     payment_signal: PaymentSignal
     technical_area: list[str] = Field(max_length=3)
     entities: Entities
-    referenced_urls: list[str]
 
 
 class ExtractionResult(_M):
@@ -46,6 +47,7 @@ _DROP = {"title", "default", "maxLength", "minLength", "maxItems", "minItems"}
 
 
 def _sanitize(node):
+    # structured outputs accept optional properties; pydantic already lists only fields without defaults in "required"
     if isinstance(node, list):
         return [_sanitize(n) for n in node]
     if not isinstance(node, dict):

@@ -52,7 +52,7 @@ registry.yaml (sources) ───┴─> scan ──> adapters ──> RawItem �
                                                                      │ new/changed items
                                                                      v
                                     extract (Claude API, Batch) ──> candidates/*.yaml
-                                                                     │ referenced_urls
+                                                                     │ links of productive items
                                                                      v
                                                        discover ──> registry.yaml (candidate)
 ```
@@ -175,8 +175,14 @@ does not analyse, estimate value, or speculate. Enforced by:
    **reported** per candidate (`length_violations`); count caps are enforced by
    Pydantic on the client.
 3. At most 3 candidates per item (validation failure otherwise).
-4. `max_tokens = 4000` per request (hard stop against runaway output), and the run report
-   shows `output_tokens / candidates` per source. A run whose mean exceeds 500
+4. Often-empty fields (deadline, evidence, researchers) are optional: `claude -p`
+   validates structured output after generation and makes the model rewrite the
+   whole JSON when a required field is omitted (measured: about 2x tokens). The model does not
+   copy URLs; discovery uses the stored item links. Measured 2026-09-30 on 10
+   items: 385 output tokens per candidate, 0 retries (was 509 with retries).
+5. `max_tokens = 4000` per request (hard stop against runaway output), and the run report
+   shows output tokens of productive items per candidate per source; tokens
+   spent on items without candidates are reported separately (`empty_tok`). A run whose mean exceeds 500
    is reported as a budget violation (the numbers are shown, not hidden).
 
 Note: on `claude-opus-5-5` thinking cannot be disabled; its tokens count as
@@ -221,15 +227,14 @@ payment_signal:             # raw, as stated; not scored
   deadline: 2026-12-01 | null
 technical_area: [...]
 entities: {organizations: [...], researchers: [...]}
-referenced_urls: [...]
 evidence_verified: true
 extracted_with: {model, run_id, output_tokens}
 ```
 
 ### 3.7 Registry maintenance (`discover`)
 
-- Input: `referenced_urls` of recent candidates (job-board patterns and feed
-  autodiscovery) plus outbound links of newly seen items (job-board patterns
+- Input: stored links of items that yielded candidates (job-board patterns
+  and feed autodiscovery; taken from the item store, not re-copied by the model) plus outbound links of newly seen items (job-board patterns
   only; no fetching).
 - Deterministic detection only: RSS/Atom autodiscovery
   (`<link rel="alternate">`), Greenhouse/Lever/Ashby URL patterns, and domains
