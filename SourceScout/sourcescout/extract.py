@@ -7,6 +7,8 @@ from pathlib import Path
 
 import anthropic
 import yaml
+from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
+from anthropic.types.messages.batch_create_params import Request
 from pydantic import ValidationError
 
 from sourcescout.categories import Category
@@ -207,5 +209,47 @@ def recent_references(output_dir: Path, since: datetime) -> list[tuple[str, str]
         if datetime.fromisoformat(rec["extracted_with"]["at"]) >= since:
             out += [(url, rec["item_id"]) for url in rec.get("referenced_urls") or []]
     return out
+def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
+    try:
+        while client.messages.batches.retrieve(batch_id).processing_status != "ended":
+            sleep(ctx.cfg.batch_poll_seconds)
+        results = list(client.messages.batches.results(batch_id))
+    except anthropic.APIError as e:
+        _raise_if_not_transient(e)
+        ctx.report.failures.append({"source_id": "*", "item_id": "*",
+                                    "error": f"batch {batch_id} not collected (kept for next run): {e}"})
+        return
+    items = ctx.store.items_in_batch(batch_id)
+    for r in results:
+        item = items.pop(r.custom_id, None)
+        if item is None:
+            continue
+        kind = r.result.type
+        if kind == "succeeded":
+            handle_message(ctx, item, r.result.message)
+        elif kind == "errored":
+            _fail(ctx, item, f"batch errored: {r.result.error}")
+        else:  # canceled / expired: external, retry next submission
+            ctx.store.reset_pending(item.item_id)
+    for item in items.values():  # no result returned for these
+        ctx.store.reset_pending(item.item_id)
+
+
 def _run_batch(ctx: ExtractContext, client, limit: int | None, sleep) -> None:
-    raise ExtractionConfigError("batch extraction is implemented in Task 8", fix="Use --sync until Task 8 lands")
+    for batch_id in ctx.store.submitted_batch_ids():
+        _collect_batch(ctx, client, batch_id, sleep)
+    requests = []
+    for item in ctx.store.pending(limit):
+        params = _params_for(ctx, item)
+        if params is not None:
+            requests.append(Request(custom_id=item.item_id, params=MessageCreateParamsNonStreaming(**params)))
+    if not requests:
+        return
+    try:
+        batch = client.messages.batches.create(requests=requests)
+    except anthropic.APIError as e:
+        _raise_if_not_transient(e)
+        ctx.report.failures.append({"source_id": "*", "item_id": "*", "error": f"batch submit failed (items stay pending): {e}"})
+        return
+    ctx.store.mark_submitted([r["custom_id"] for r in requests], batch.id)
+    _collect_batch(ctx, client, batch.id, sleep)
