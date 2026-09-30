@@ -5,3 +5,5 @@ SourceScout/data/
 .worktrees/
 .superpowers/
 .env
+ProblemExtractor/data/
+NoveltyInvestigator/data/

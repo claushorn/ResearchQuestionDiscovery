@@ -2,7 +2,7 @@ import pytest
 
 from conftest import make_fetcher
 from sourcescout.adapters import KINDS, REQUIRED_PARAMS
-from sourcescout.errors import SourceFetchError
+from rqd.errors import SourceFetchError
 from sourcescout.registry import Source
 
 
@@ -132,3 +132,28 @@ def test_html_list_records_dead_item_and_keeps_others():
     items = KINDS["html_list"].fetch(src, make_fetcher(routes), never, errors)
     assert [i.title for i in items] == ["Topic 2"]
     assert len(errors) == 1 and "topics/1" in errors[0] and "HTTP 404" in errors[0]
+
+
+SECTIONED = """<html><body><h2>Prize competitions</h2><a href="/c/1">Open prize</a>
+<h2>Benchmarks</h2><a href="/c/2">Benchmark</a><h2>Completed competitions</h2><a href="/c/3">Old one</a></body></html>"""
+CARDS = """<html><body><a href="/c/1">Active · ends in 3 months Protein challenge</a>
+<a href="/c/2">Ended · Results available Old challenge</a><a href="/c/2">Old challenge</a>
+<a href="/c/3">Closed Another</a></body></html>"""
+
+
+def _page(title):
+    return f"<html><head><title>{title}</title></head><body><main>{title} body</main></body></html>"
+
+
+def test_html_list_stops_at_completed_section():
+    routes = {"GET https://dd.example/competitions": SECTIONED, **{f"GET https://dd.example/c/{i}": _page(f"C{i}") for i in (1, 2, 3)}}
+    src = S("html_list", "https://dd.example/competitions", link_selector='a[href^="/c/"]',
+            stop_at_heading="(?i)completed competitions")
+    assert [i.title for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == ["C1", "C2"]
+
+
+def test_html_list_skips_links_whose_text_marks_them_finished():
+    routes = {"GET https://pb.example/competitions": CARDS, **{f"GET https://pb.example/c/{i}": _page(f"C{i}") for i in (1, 2, 3)}}
+    src = S("html_list", "https://pb.example/competitions", link_selector='a[href^="/c/"]',
+            skip_link_text=r"(?i)\bended\b|\bclosed\b|\bcompleted\b")
+    assert [i.title for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == ["C1"]

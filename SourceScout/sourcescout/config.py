@@ -2,14 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import yaml
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import ValidationError
 
-from sourcescout.errors import ConfigError, ScoutError
-
-
-class Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+from rqd.config import HttpCfg, Strict, load_yaml
+from rqd.errors import ConfigError
 
 
 class ExtractionCfg(Strict):
@@ -26,12 +22,6 @@ class LifecycleCfg(Strict):
     promote_within_scans: int
     max_consecutive_failures: int
     retire_zero_yield_active: int
-
-
-class HttpCfg(Strict):
-    user_agent: str
-    timeout_s: float
-    min_interval_s_per_host: float
 
 
 class ScanCfg(Strict):
@@ -85,15 +75,6 @@ class Paths:
     @property
     def unmapped(self) -> Path:
         return self.root / "discovered_unmapped.yaml"
-
-
-def load_yaml(path: Path, error_cls: type[ScoutError]) -> object:
-    if not path.exists():
-        raise error_cls(f"{path} not found", fix=f"Create {path.name} in {path.parent}")
-    try:
-        return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    except yaml.YAMLError as e:
-        raise error_cls(f"{path} is not valid YAML: {e}", fix=f"Fix the YAML syntax in {path}") from e
 
 
 def load_config(path: Path) -> Config:

@@ -1,0 +1,168 @@
+import shutil
+from pathlib import Path
+
+import pytest
+
+from pe_testing import FakeClient, candidate, message, pe_output, seed
+from problemextractor.config import PEPaths, load_config
+from problemextractor.extract import PEContext, run_extraction
+from problemextractor.records import problem_id_for
+from rqd.errors import ItemExtractionError
+
+PE_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture
+def ctx(tmp_path):
+    root = tmp_path / "ProblemExtractor"
+    root.mkdir()
+    shutil.copy(PE_ROOT / "config.yaml", root / "config.yaml")
+    (tmp_path / "SourceScout").mkdir()
+    return lambda: PEContext.open(PEPaths(root), load_config(root / "config.yaml"), run_id="RUN1")
+
+
+def test_new_problem_written_and_candidate_marked_processed(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output())]))
+    rec = pe.problems.load(problem_id_for(c["candidate_id"]))
+    assert rec["unsolvedness"]["evidence_verified"] is True and rec["sources"][0]["tier"] == "A"
+    assert (pe.report.processed, pe.report.new, pe.report.merged, pe.report.output_tokens) == (1, 1, 0, 420)
+    assert pe.state.is_processed(c["candidate_id"])
+
+
+def test_similar_candidate_merged_via_shortlist(ctx, tmp_path):
+    c0, c1 = candidate(0), candidate(1, statement="Planning long horizons for warehouse robots under uncertainty.")
+    seed(tmp_path / "SourceScout", [c0, c1])
+    pid = problem_id_for(c0["candidate_id"])
+    client = FakeClient([message(pe_output()), message(pe_output(merge_with=pid))])
+    pe = ctx()
+    run_extraction(pe, client)
+    assert f"[{pid}]" in client.calls[1]["messages"][0]["content"]
+    rec = pe.problems.load(pid)
+    assert rec["revision"] == 2 and len(rec["sources"]) == 2 and pe.report.merged == 1
+    assert not pe.problems.exists(problem_id_for(c1["candidate_id"]))
+
+
+def test_merge_with_outside_shortlist_becomes_new_and_is_reported(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output(merge_with="prob-invented"))]))
+    assert pe.problems.exists(problem_id_for(c["candidate_id"])) and pe.report.new == 1
+    assert pe.report.invalid_merges == [f"{c['candidate_id']}: prob-invented"]
+
+
+def test_unverifiable_explicit_quote_is_flagged(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output(evidence="a quote that is not in the document"))]))
+    assert pe.problems.load(problem_id_for(c["candidate_id"]))["unsolvedness"]["evidence_verified"] is False
+    assert pe.report.unverified == 1
+
+
+def test_rerun_processes_nothing(ctx, tmp_path):
+    seed(tmp_path / "SourceScout", [candidate(0)])
+    run_extraction(ctx(), FakeClient([message(pe_output())]))
+    again = ctx()
+    client = FakeClient([])
+    run_extraction(again, client)
+    assert client.calls == [] and again.report.processed == 0
+
+
+def test_failed_candidate_is_retried_next_run(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    first = ctx()
+    run_extraction(first, FakeClient([ItemExtractionError("claude -p timed out")]))
+    assert first.report.failures and not first.state.is_processed(c["candidate_id"])
+    second = ctx()
+    run_extraction(second, FakeClient([message(pe_output())]))
+    assert second.report.new == 1
+
+
+def test_missing_source_item_is_a_reported_failure(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [])
+    out = tmp_path / "SourceScout" / "output" / "2026-09"
+    import yaml
+    (out / f"{c['candidate_id']}.yaml").write_text(yaml.safe_dump(c))
+    pe = ctx()
+    run_extraction(pe, FakeClient([]))
+    assert "not in the SourceScout store" in pe.report.failures[0]
+
+
+def test_tier_a_first_and_limit(ctx, tmp_path):
+    blog = candidate(0, tier="C", source_id="rss-x", at="2026-09-29T00:00:00+00:00")
+    grant = candidate(1, tier="A", at="2026-09-30T00:00:00+00:00")
+    seed(tmp_path / "SourceScout", [blog, grant])
+    client = FakeClient([message(pe_output())])
+    run_extraction(ctx(), client, limit=1)
+    assert "Call 1" in client.calls[0]["messages"][0]["content"]
+
+
+def test_structured_output_retries_are_counted(ctx, tmp_path):
+    seed(tmp_path / "SourceScout", [candidate(0)])
+    m = message(pe_output())
+    m.num_turns = 3  # claude -p rewrote the structured output once
+    pe = ctx()
+    run_extraction(pe, FakeClient([m]))
+    assert pe.report.retries == 1
+
+
+def test_pe_uses_high_effort_with_a_higher_reported_limit(ctx, tmp_path):
+    seed(tmp_path / "SourceScout", [candidate(0), candidate(1, statement="An unrelated sensor calibration problem.")])
+    pe = ctx()
+    client = FakeClient([message(pe_output(), output_tokens=1900)])
+    run_extraction(pe, client, limit=1)
+    assert client.calls[0]["output_config"]["effort"] == "high"
+    assert pe.cfg.extraction.token_budget == 2000
+    assert "per candidate: 1900" in pe.report.render(2000) and "BUDGET VIOLATION" not in pe.report.render(2000)
+    assert "BUDGET VIOLATION (> 1500)" in pe.report.render(1500)
+    assert "known_solution_inferred" in client.calls[0]["system"][0]["text"]
+
+
+def test_merged_candidate_quote_is_verified_and_counted(ctx, tmp_path):
+    c0, c1 = candidate(0), candidate(1, statement="Planning long horizons for warehouse robots under uncertainty.")
+    seed(tmp_path / "SourceScout", [c0, c1])
+    pid = problem_id_for(c0["candidate_id"])
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output()), message(pe_output(merge_with=pid, evidence="NOT IN THE DOCUMENT"))]))
+    assert pe.report.unverified == 1
+    assert pe.problems.load(pid)["merge_log"][1]["extracted"]["unsolvedness"]["evidence_verified"] is False
+
+
+def test_candidate_from_superseded_item_revision_is_not_extracted(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    from sourcescout.adapters.base import RawItem
+    from sourcescout.store import Store
+    Store(tmp_path / "SourceScout" / "data" / "scout.db").upsert(
+        RawItem(c["source_id"], c["source"]["url"], "t", None, "the page changed", ()), "2026-10-01T00:00:00+00:00", 20000)
+    pe = ctx()
+    client = FakeClient([])
+    run_extraction(pe, client)
+    assert client.calls == [] and pe.report.superseded == [c["candidate_id"]]
+    assert pe.state.is_processed(c["candidate_id"])  # recorded, so not retried forever
+
+
+def test_malformed_candidate_file_is_reported_and_run_continues(ctx, tmp_path):
+    c = candidate(1)
+    seed(tmp_path / "SourceScout", [c])
+    (tmp_path / "SourceScout" / "output" / "2026-09" / "cand-broken.yaml").write_text("source_id: x\nitem_id: [unclosed\n")
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output())]))
+    assert pe.report.new == 1 and any("cand-broken.yaml" in f for f in pe.report.failures)
+
+
+def test_fallback_model_is_recorded_and_counted(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    m = message(pe_output())
+    m.models_used = ["claude-opus-5-5", "claude-opus-5"]  # Claude Code fell back after a classifier stop
+    pe = ctx()
+    run_extraction(pe, FakeClient([m]))
+    assert pe.problems.load(problem_id_for(c["candidate_id"]))["extracted_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]
+    assert pe.report.fallbacks == 1 and "model fallbacks: 1" in pe.report.render(2000)

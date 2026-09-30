@@ -4,9 +4,10 @@ import subprocess
 import pytest
 
 from test_extract import add_item, cand, ctx  # noqa: F401  (fixture re-export)
-from sourcescout.claude_code import ClaudeCodeClient
-from sourcescout.errors import ExtractionConfigError
-from sourcescout.extract import build_params, make_client, run_extraction
+from rqd.claude_code import ClaudeCodeClient
+from rqd.errors import ExtractionConfigError
+from rqd.claude_code import make_client
+from sourcescout.extract import build_params, run_extraction
 
 
 def result(structured=None, is_error=False, status=None, text="", out_tokens=420):
@@ -79,4 +80,14 @@ def test_batch_requires_api_backend(ctx):
 def test_make_client_claude_code_requires_cli(ctx, monkeypatch):
     monkeypatch.setattr("shutil.which", lambda name: None)
     with pytest.raises(ExtractionConfigError, match="claude"):
-        make_client(ctx.cfg.model_copy(update={"backend": "claude_code"}))
+        make_client("claude_code")
+
+
+def test_num_turns_exposed_so_structured_output_retries_are_countable(ctx):
+    add_item(ctx)
+    [item] = ctx.store.pending()
+    params = build_params(ctx.cfg, item, ctx.registry.get("g"), ctx.registry.categories["gov_solicitation"])
+    out = json.loads(result({"candidates": []}))
+    out["num_turns"] = 3
+    msg = ClaudeCodeClient(runner=FakeRunner([json.dumps(out)])).messages.create(**params)
+    assert msg.num_turns == 3

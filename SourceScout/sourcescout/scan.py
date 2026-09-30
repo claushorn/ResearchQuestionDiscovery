@@ -4,12 +4,12 @@ import time
 from datetime import datetime
 
 from sourcescout.adapters import KINDS, RawItem
-from sourcescout.errors import SourceFetchError
-from sourcescout.http import Fetcher
+from rqd.errors import SourceFetchError
+from rqd.http import Fetcher
 from sourcescout.registry import Health, Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.store import Store
-from sourcescout.timeutil import iso
+from rqd.timeutil import iso
 
 log = logging.getLogger("sourcescout")
 

@@ -1,28 +1,25 @@
 import logging
-import re
 import time
-import unicodedata
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-
-import shutil
 
 import anthropic
 import yaml
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
 from anthropic.types.messages.batch_create_params import Request
-from pydantic import ValidationError
 
 from sourcescout.categories import Category
 from sourcescout.config import ExtractionCfg
-from sourcescout.claude_code import ClaudeCodeClient
-from sourcescout.errors import ExtractionConfigError, ItemExtractionError
+from rqd.claude_code import ClaudeCodeClient, parse_structured, raise_if_not_transient
+from rqd.errors import ExtractionConfigError, ItemExtractionError
+from rqd.quotes import quote_in_text
+from rqd.records import YamlStore
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.schema import EXTRACTION_SCHEMA, ExtractionResult, length_violations
 from sourcescout.store import Store, StoredItem
-from sourcescout.timeutil import iso, utcnow
+from rqd.timeutil import iso, utcnow
 
 log = logging.getLogger("sourcescout")
 MAX_LINKS = 50  # links shown to the model, numbered from 1
@@ -62,19 +59,6 @@ def build_params(cfg: ExtractionCfg, item: StoredItem, source: Source, category:
     }
 
 
-_QUOTES = str.maketrans({"“": '"', "”": '"', "„": '"', "‘": "'", "’": "'", "–": "-", "—": "-"})
-
-
-def _norm(s: str) -> str:
-    s = re.sub(r"\s+", " ", unicodedata.normalize("NFKC", s).translate(_QUOTES))
-    return re.sub(r" ([.,;:!?)\]])", r"\1", s).strip()  # html_to_text puts inline tags on own lines
-
-
-def quote_in_text(quote: str, text: str) -> bool:
-    q = _norm(quote)
-    return bool(q) and q in _norm(text)
-
-
 @dataclass
 class ExtractContext:
     cfg: ExtractionCfg
@@ -85,33 +69,10 @@ class ExtractContext:
     run_id: str
 
 
-def make_client(cfg: ExtractionCfg):
-    if cfg.backend == "claude_code":
-        if shutil.which("claude") is None:
-            raise ExtractionConfigError("backend claude_code needs the `claude` CLI on PATH",
-                                        fix="Install Claude Code, or set extraction.backend: api in config.yaml")
-        return ClaudeCodeClient()
-    client = anthropic.Anthropic()
-    if client.api_key is None and client.auth_token is None and client.credentials is None:
-        raise ExtractionConfigError("No Anthropic credentials found",
-                                    fix="export ANTHROPIC_API_KEY=... (or run `ant auth login`)")
-    return client
-
-
 def _fail(ctx: ExtractContext, item: StoredItem, error: str) -> None:
     ctx.store.mark_failed(item.item_id, error)
     ctx.report.extract_stat(item.source_id).failed += 1
     ctx.report.failures.append({"source_id": item.source_id, "item_id": item.item_id, "error": error})
-
-
-def _raise_if_not_transient(e: anthropic.APIError) -> None:
-    """Errors a retry cannot fix (auth, permission, bad model, bad request) abort the run."""
-    if isinstance(e, (anthropic.APIConnectionError, anthropic.RateLimitError)):
-        return
-    if isinstance(e, anthropic.APIStatusError) and e.status_code >= 500:
-        return
-    raise ExtractionConfigError(f"Anthropic API rejected the request: {e}",
-                                fix="Check credentials, the model name in config.yaml, and the request schema") from e
 
 
 def _required_quotes(c) -> tuple[list[str], bool]:
@@ -131,15 +92,10 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
     stat.output_tokens += usage.output_tokens
     stat.input_tokens += usage.input_tokens
     stat.cache_read_tokens += getattr(usage, "cache_read_input_tokens", 0) or 0
-    if message.stop_reason in ("refusal", "max_tokens"):
-        return _fail(ctx, item, f"stop_reason={message.stop_reason}")
-    text = next((b.text for b in message.content if b.type == "text"), None)
-    if text is None:
-        return _fail(ctx, item, "no text block in response")
     try:
-        result = ExtractionResult.model_validate_json(text)
-    except ValidationError as e:
-        return _fail(ctx, item, f"schema: {e.errors()[:3]}")
+        result = parse_structured(message, ExtractionResult)
+    except ItemExtractionError as e:
+        return _fail(ctx, item, str(e))
     source = ctx.registry.find(item.source_id)
     if source is None:
         return _fail(ctx, item, f"source {item.source_id!r} no longer in registry")
@@ -170,12 +126,10 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
             "unresolved_link_refs": unresolved,
             "evidence_verified": verified,
             "length_violations": violations,
-            "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now)},
+            "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now),
+                               "answered_by": getattr(message, "models_used", None) or [ctx.cfg.model]},
         }
-        out_dir = ctx.output_dir / now.strftime("%Y-%m")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{record['candidate_id']}.yaml").write_text(
-            yaml.safe_dump(record, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        YamlStore(ctx.output_dir / now.strftime("%Y-%m")).save(record, record["candidate_id"])
     stat.candidates += len(result.candidates)
     if result.candidates:
         source.yield_.candidates += len(result.candidates)
@@ -217,7 +171,7 @@ def _extract_one(ctx: ExtractContext, client, item: StoredItem) -> None:
     try:
         message = client.messages.create(**params)
     except anthropic.APIError as e:
-        _raise_if_not_transient(e)
+        raise_if_not_transient(e)
         _fail(ctx, item, f"api: {e}")
         return
     except ItemExtractionError as e:
@@ -278,7 +232,7 @@ def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
                                     "error": f"batch {batch_id} no longer available ({e}); its items were resubmitted"})
         return
     except anthropic.APIError as e:
-        _raise_if_not_transient(e)
+        raise_if_not_transient(e)
         ctx.report.failures.append({"source_id": "*", "item_id": "*",
                                     "error": f"batch {batch_id} not collected (kept for next run): {e}"})
         return
@@ -311,7 +265,7 @@ def _run_batch(ctx: ExtractContext, client, limit: int | None, sleep) -> None:
     try:
         batch = client.messages.batches.create(requests=requests)
     except anthropic.APIError as e:
-        _raise_if_not_transient(e)
+        raise_if_not_transient(e)
         ctx.report.failures.append({"source_id": "*", "item_id": "*", "error": f"batch submit failed (items stay pending): {e}"})
         return
     ctx.store.mark_submitted([r["custom_id"] for r in requests], batch.id)

@@ -51,7 +51,7 @@ def test_second_concurrent_run_is_refused(paths):
         res = CliRunner().invoke(app, ["--root", str(paths.root), "scan"])
     finally:
         held.close()
-    assert res.exit_code == 1 and "another sourcescout command is running" in res.output
+    assert res.exit_code == 1 and "another command is running on this directory" in res.output
 
 
 def test_registry_saved_after_each_source_so_interrupts_keep_progress(paths, monkeypatch):

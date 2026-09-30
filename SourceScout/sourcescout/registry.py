@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from selectolax.parser import HTMLParser
 
 from sourcescout.categories import Category
-from sourcescout.config import Strict, load_yaml
+from rqd.config import Strict, load_yaml
 from sourcescout.errors import RegistryError
 
 
@@ -91,7 +91,7 @@ class Registry:
                     HTMLParser("").css(s.params[key])
                 except ValueError as e:
                     raise RegistryError(f"source {s.id!r}: invalid CSS selector in {key}: {e}", fix=_FIX) from e
-        for key in ("title_include", "title_exclude", "link_pattern"):
+        for key in ("title_include", "title_exclude", "link_pattern", "skip_link_text", "stop_at_heading"):
             if key in s.params:
                 try:
                     re.compile(s.params[key])

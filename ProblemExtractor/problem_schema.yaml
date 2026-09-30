@@ -1,0 +1,29 @@
+# One merged problem per file: ProblemExtractor/problems/<problem_id>.yaml
+problem_id: prob-3f2a9c0d1e4b5a6f-r1-0   # from the first candidate that stated the problem; stable
+revision: 2                               # increments when another source is merged in
+problem:
+  precise_statement: ...                  # <= 60 words, from the source document only
+current_state:
+  known_solution: ...                     # from the document, or "not stated"
+  known_solution_inferred: ...            # the model's own state-of-the-art assessment ("" if not confident)
+failure:
+  what_current_methods_cannot_do: ...     # from the document, or "not stated"
+  what_current_methods_cannot_do_inferred: ...
+desired_capability: ...
+why_it_matters: ...
+unsolvedness:
+  explicit: true
+  explicit_evidence: "<verbatim quote>"   # required when explicit
+  inferred: false                         # true = the model's inference, not stated in the source
+  evidence_verified: true                 # quote found in the source item text (checked by code)
+sources:                                  # every SourceScout candidate stating this problem
+  - candidate_id: cand-3f2a9c0d1e4b5a6f-r1-0
+    source_id: grants-gov-ml
+    tier: A
+    url: ...
+    title: ...
+    payment_signal: {type: grant, stated: "$1.5M", deadline: 2026-12-01}
+merge_log:                                # one entry per candidate: why it is new / merged
+  - {candidate_id: ..., decision: new, reason: ..., extracted: {<the six sections as extracted>}}
+  - {candidate_id: ..., decision: merged, reason: ..., extracted: {...}, at: ...}
+extracted_with: {model: claude-opus-5-5, run_id: ..., output_tokens: 420, at: ...}

@@ -1,10 +1,10 @@
 import httpx
 import pytest
 
-from conftest import make_fetcher
-from sourcescout.config import HttpCfg
-from sourcescout.errors import SourceFetchError
-from sourcescout.http import Fetcher, html_to_text
+from rqd_testing import make_fetcher
+from rqd.config import HttpCfg
+from rqd.errors import SourceFetchError
+from rqd.http import Fetcher, html_to_text
 
 
 def test_html_to_text_strips_boilerplate_and_resolves_links():

@@ -1,6 +1,6 @@
 from sourcescout.adapters.base import IsKnown, RawItem
 from sourcescout.adapters.jobboards import _json, _shape_error
-from sourcescout.http import Fetcher, html_to_text
+from rqd.http import Fetcher, html_to_text
 from sourcescout.registry import Source
 
 DETAIL_URL = "https://api.grants.gov/v1/api/fetchOpportunity"

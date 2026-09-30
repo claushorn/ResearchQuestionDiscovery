@@ -3,8 +3,8 @@ from typing import Literal
 
 from pydantic import ValidationError
 
-from sourcescout.config import Strict, load_yaml
-from sourcescout.errors import ConfigError
+from rqd.config import Strict, load_yaml
+from rqd.errors import ConfigError
 
 
 class Category(Strict):

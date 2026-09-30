@@ -1,13 +1,16 @@
+import io
 import re
 import time
 from urllib.parse import urljoin, urlsplit
 from urllib.robotparser import RobotFileParser
 
 import httpx
+from pypdf import PdfReader
+from pypdf.errors import PyPdfError
 from selectolax.parser import HTMLParser
 
-from sourcescout.config import HttpCfg
-from sourcescout.errors import SourceFetchError
+from rqd.config import HttpCfg
+from rqd.errors import SourceFetchError
 
 _BOILERPLATE = ("script", "style", "noscript", "nav", "footer", "header", "svg", "form")
 
@@ -30,6 +33,14 @@ def html_to_text(html: str, base_url: str = "") -> tuple[str, list[str]]:
     return "\n".join(line for line in lines if line), list(dict.fromkeys(links))
 
 
+def pdf_to_text(data: bytes) -> str:
+    """Text of all pages of a PDF (for verifying quotes from papers served as PDF)."""
+    try:
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+    except (PyPdfError, ValueError) as e:
+        raise SourceFetchError(f"unparsable PDF: {e}") from e
+
+
 class Fetcher:
     """Polite HTTP client: robots.txt (RFC 9309), per-host throttle, errors -> SourceFetchError."""
 
@@ -49,6 +60,9 @@ class Fetcher:
         return self._request("POST", url, json=payload)
 
     def _request(self, method: str, url: str, **kw) -> httpx.Response:
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:  # URLs may come from a model
+            raise SourceFetchError(f"not an http(s) URL: {url!r}")
         self._check_robots(url)
         self._throttle(urlsplit(url).netloc)
         try:

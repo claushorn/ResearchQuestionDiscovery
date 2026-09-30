@@ -7,8 +7,8 @@ import yaml
 from selectolax.parser import HTMLParser
 
 from sourcescout.config import DiscoveryCfg
-from sourcescout.errors import SourceFetchError
-from sourcescout.http import Fetcher
+from rqd.errors import SourceFetchError
+from rqd.http import Fetcher
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.store import canonical_url

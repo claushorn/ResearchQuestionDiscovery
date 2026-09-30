@@ -1,0 +1,10 @@
+agent:
+  model: claude-opus-5-5
+  effort: medium                   # adversarial search needs more reasoning than extraction
+  max_budget_usd: 2.0              # per investigation, list-price equivalent (counts against the subscription)
+  min_searches: 4                  # fewer counted WebSearch calls -> investigation marked INSUFFICIENT SEARCH
+http:                              # fetching cited works for quote verification
+  user_agent: "RQD-NoveltyInvestigator/0.1 (research evidence verification)"
+  timeout_s: 30
+  min_interval_s_per_host: 2.0
+problemextractor_root: ../ProblemExtractor   # problems/<problem-id>.yaml are read from here

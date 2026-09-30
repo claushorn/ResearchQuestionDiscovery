@@ -10,8 +10,9 @@ import yaml
 from conftest import make_registry
 from sourcescout.adapters.base import RawItem
 from sourcescout.config import load_config
-from sourcescout.errors import ExtractionConfigError
-from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, recent_referenced_links,
+from rqd.claude_code import make_client
+from rqd.errors import ExtractionConfigError
+from sourcescout.extract import (ExtractContext, build_params, recent_referenced_links,
                                  run_extraction)
 from sourcescout.report import RunReport
 from sourcescout.store import Store, item_id_for
@@ -70,13 +71,6 @@ def test_build_params(ctx):
     assert "long-horizon planning" in user and "https://org.example/call" in user and 'tier="A"' in user
 
 
-def test_quote_in_text_normalises_quotes_and_whitespace():
-    assert quote_in_text('for "long-horizon  planning", which', TEXT)
-    assert not quote_in_text("the agency wants better planning", TEXT)
-    assert not quote_in_text("", TEXT)
-    assert quote_in_text("better forecasting.", "We need better\nforecasting\n.")
-
-
 def test_sync_writes_records(ctx):
     add_item(ctx)
     client = FakeClient([message({"candidates": [cand(), cand(pay="paraphrased funding")]})])
@@ -128,7 +122,7 @@ def test_make_client_without_credentials(ctx, monkeypatch, tmp_path):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     with pytest.raises(ExtractionConfigError):
-        make_client(ctx.cfg.model_copy(update={"backend": "api"}))
+        make_client("api")
 
 
 def test_links_are_numbered_and_relevant_links_resolved_by_code(ctx):
@@ -159,3 +153,22 @@ def test_tokens_of_empty_items_are_reported_separately(ctx):
                                     message({"candidates": [cand()]}, output_tokens=450)]), batch=False)
     st = ctx.report.extract["g"]
     assert (st.output_tokens, st.empty_output_tokens, st.tokens_per_candidate()) == (530, 80, 450)
+
+
+def test_candidate_files_are_written_atomically_via_the_shared_store(ctx, monkeypatch):
+    import rqd.records
+    saved = []
+    real = rqd.records.YamlStore.save
+    monkeypatch.setattr(rqd.records.YamlStore, "save", lambda self, rec, rid: (saved.append(rid), real(self, rec, rid)))
+    add_item(ctx)
+    run_extraction(ctx, FakeClient([message({"candidates": [cand()]})]), batch=False)
+    assert saved and saved[0].startswith("cand-")
+
+
+def test_candidate_records_which_models_answered(ctx):
+    add_item(ctx)
+    m = message({"candidates": [cand()]})
+    m.models_used = ["claude-opus-5-5", "claude-opus-5"]
+    run_extraction(ctx, FakeClient([m]), batch=False)
+    [f] = ctx.output_dir.glob("*/*.yaml")
+    assert yaml.safe_load(f.read_text())["extracted_with"]["answered_by"] == ["claude-opus-5-5", "claude-opus-5"]

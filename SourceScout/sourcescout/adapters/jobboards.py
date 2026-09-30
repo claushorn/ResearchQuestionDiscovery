@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 import httpx
 
 from sourcescout.adapters.base import IsKnown, RawItem
-from sourcescout.errors import SourceFetchError
-from sourcescout.http import Fetcher, html_to_text
+from rqd.errors import SourceFetchError
+from rqd.http import Fetcher, html_to_text
 from sourcescout.registry import Source
 
 

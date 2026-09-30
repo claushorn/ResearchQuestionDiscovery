@@ -33,7 +33,8 @@ Only one mutating command runs per SourceScout directory at a time (`data/run.lo
 
 ## Source kinds
 `rss` (params: `max_items`, `fetch_full`), `greenhouse`, `lever`, `ashby`, `grants_gov` (`keyword`, `rows`,
-`opp_statuses`), `html_list` (`link_selector`, `link_pattern`, `max_items`, `content_selector`),
+`opp_statuses`), `html_list` (`link_selector`, `link_pattern`, `max_items`, `content_selector`,
+`skip_link_text` — skip listing entries marked finished, `stop_at_heading` — ignore everything below e.g. "Completed competitions"),
 `page` (`content_selector`). Every kind accepts `title_include` / `title_exclude` regexes; job boards without
 `title_include` use `scan.job_title_include` from `config.yaml`.
 

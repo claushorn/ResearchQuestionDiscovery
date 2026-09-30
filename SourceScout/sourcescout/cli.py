@@ -1,27 +1,24 @@
-import fcntl
-import functools
-import logging
-import sys
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
-from dotenv import load_dotenv
 
 from sourcescout.adapters import KINDS, REQUIRED_PARAMS
 from sourcescout.categories import load_categories
 from sourcescout.config import DEFAULT_ROOT, Config, Paths, load_config
 from sourcescout.discover import discover as run_discover
-from sourcescout.errors import ScoutError, SourceFetchError
-from sourcescout.extract import ExtractContext, make_client, recent_referenced_links, run_extraction
-from sourcescout.http import Fetcher
+from rqd.cli import clean_errors, exclusive, load_repo_env, progress_to_stderr
+from rqd.errors import RqdError, SourceFetchError
+from rqd.claude_code import make_client
+from sourcescout.extract import ExtractContext, recent_referenced_links, run_extraction
+from rqd.http import Fetcher
 from sourcescout.lifecycle import apply_lifecycle
 from sourcescout.registry import Health, Registry
 from sourcescout.report import RunReport
 from sourcescout.scan import scan as run_scan
 from sourcescout.store import Store
-from sourcescout.timeutil import iso, utcnow
+from rqd.timeutil import iso, utcnow
 
 app = typer.Typer(no_args_is_help=True, help="SourceScout: collect newly exposed, paid-for technical problems.")
 sources_app = typer.Typer(no_args_is_help=True, help="Inspect and manage registry sources.")
@@ -44,52 +41,11 @@ def _env(root: Path) -> Env:
     return Env(paths, config, registry, Store(paths.db), Fetcher(config.http))
 
 
-def clean_errors(fn):
-    @functools.wraps(fn)
-    def wrapper(*args, **kwargs):
-        try:
-            return fn(*args, **kwargs)
-        except ScoutError as e:
-            typer.echo(f"ERROR: {e}", err=True)
-            if e.fix:
-                typer.echo(f"Fix: {e.fix}", err=True)
-            raise typer.Exit(1)
-    return wrapper
-
-
-def exclusive(fn):
-    """One mutating sourcescout command per SourceScout directory at a time (store, registry, API usage)."""
-    @functools.wraps(fn)
-    def wrapper(ctx: typer.Context, *args, **kwargs):
-        lock_path = Paths(ctx.obj).root / "data" / "run.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_path, "w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as e:
-                raise ScoutError("another sourcescout command is running on this directory",
-                                 fix="Wait for it to finish (or stop it), then run again") from e
-            return fn(ctx, *args, **kwargs)
-    return wrapper
-
-
 @app.callback()
 def main(ctx: typer.Context, root: Path = typer.Option(DEFAULT_ROOT, "--root", help="SourceScout directory")):
-    load_dotenv(root.parent / ".env", override=False)  # repo-root .env holds ANTHROPIC_API_KEY
-    _progress_to_stderr()
+    load_repo_env(root)
+    progress_to_stderr("sourcescout")
     ctx.obj = root
-
-
-def _progress_to_stderr() -> None:
-    """Progress lines (scan per source, extract per item, batch polls) go to stderr; the report to stdout."""
-    logger = logging.getLogger("sourcescout")
-    logger.setLevel(logging.INFO)
-    for h in [h for h in logger.handlers if getattr(h, "_sourcescout_cli", False)]:
-        logger.removeHandler(h)
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter("%(asctime)s %(message)s", datefmt="%H:%M:%S"))
-    handler._sourcescout_cli = True
-    logger.addHandler(handler)
 
 
 def _finish(env: Env, report: RunReport) -> None:
@@ -111,7 +67,7 @@ def _extract(env: Env, report: RunReport, batch: bool | None, limit: int | None)
     ctx = ExtractContext(env.config.extraction, env.registry, env.store, report, env.paths.output, report.run_id)
     if batch is None:  # default follows the backend: batches only exist on the API
         batch = env.config.extraction.backend == "api"
-    run_extraction(ctx, make_client(env.config.extraction), batch=batch, limit=limit)
+    run_extraction(ctx, make_client(env.config.extraction.backend), batch=batch, limit=limit)
 
 
 def _discover(env: Env, report: RunReport, since: datetime) -> None:
@@ -183,7 +139,7 @@ def report(ctx: typer.Context, run_id: str = typer.Option(None, "--run-id")):
     paths = Paths(ctx.obj)
     path = paths.runs / f"{run_id}.json" if run_id else RunReport.latest(paths.runs)
     if path is None or not path.exists():
-        raise ScoutError("No run reports found", fix="Run `uv run sourcescout run` first")
+        raise RqdError("No run reports found", fix="Run `uv run sourcescout run` first")
     budget = load_config(paths.config).extraction.token_budget_per_candidate
     typer.echo(RunReport.load(path).render(budget))
 
@@ -204,13 +160,16 @@ def sources_check(ctx: typer.Context, source_id: str):
     """Fetch one source without storing anything; prints what an extraction would see."""
     env = _env(ctx.obj)
     s = env.registry.get(source_id)
+    item_errors: list[str] = []
     try:
-        items = KINDS[s.kind].fetch(s, env.http, lambda url: False)
+        items = KINDS[s.kind].fetch(s, env.http, lambda url: False, item_errors)
     except SourceFetchError as e:
-        raise ScoutError(f"{source_id}: {e}", fix="Correct the url/params in registry.yaml or drop the source")
+        raise RqdError(f"{source_id}: {e}", fix="Correct the url/params in registry.yaml or drop the source")
     typer.echo(f"{source_id}: {len(items)} items")
     for it in items[:3]:
         typer.echo(f"  - {it.title[:80]} | {it.url} | {len(it.text)} chars, {len(it.links)} links")
+    for err in item_errors:  # same per-item handling as scan: the source stays usable
+        typer.echo(f"  item error: {err}")
 
 
 def _set_status(root: Path, source_id: str, status: str) -> None:

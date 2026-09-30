@@ -1,0 +1,22 @@
+# One investigation per problem: NoveltyInvestigator/investigations/<problem_id>.yaml
+problem_id: prob-…
+revision: 1
+novelty:
+  status: likely_open | partially_solved | solved | unclear
+checks:                                    # the six questions (strongest_counterargument below)
+  already_solved:              {answer: yes|no|partially|unclear, reasoning: ..., evidence: [1]}   # numbers into closest_work
+  same_problem_paper:          {answer: ..., reasoning: ..., evidence: [...]}
+  merely_implementation_issue: {answer: ..., reasoning: ..., evidence: [...]}
+  obvious_baseline:            {answer: ..., baseline: ..., reasoning: ..., evidence: [...]}
+  obvious_approaches_tried:    {answer: ..., reasoning: ..., evidence: [...]}
+closest_work:
+  - {title: ..., url: ..., year: 2025, kind: paper|repo|benchmark|patent|report|company,
+     quote: "<verbatim text read on that page>", how_close: ...,
+     verification: verified|quote_not_found|unfetchable}            # set by code, not the model
+difference_from_closest_work: ...
+strongest_counterargument: ...
+confidence: 0.74
+search: {searches: 6, fetches: 4, queries: [...], sufficient: true}  # counted from tool calls
+verified_fraction: 0.75
+investigated_with: {model, effort, cost_usd_equivalent, output_tokens, input_tokens, turns, duration_s, at, transcript}
+history: []                                # earlier revisions when re-investigated
