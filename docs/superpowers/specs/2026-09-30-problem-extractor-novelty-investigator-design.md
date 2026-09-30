@@ -76,7 +76,7 @@ ResearchQuestionDiscovery/
 
 One uv project (root `pyproject.toml`) with packages `rqd`, `sourcescout`,
 `problemextractor`, `noveltyinvestigator` and one CLI per capability.
-The refactor is a pure move: SourceScout's test suite must pass unchanged
+The refactor starts after PR #4 (relevant links, tier order) is merged, so it moves the current code. It is a pure move: SourceScout's test suite must pass unchanged
 (apart from import paths) before PE work starts. `ScoutError` becomes
 `RqdError` everywhere (no alias kept).
 
@@ -142,7 +142,7 @@ sources:                          # one entry per merged candidate
     url: ...
     payment_signal: {type: grant, stated: "$1.5M", deadline: 2026-12-01}
 merge_log:
-  - {candidate_id: cand-…, decision: new | merged, reason: ...}
+  - {candidate_id: cand-…, decision: new | merged, reason: ..., extracted: {<the six fields as extracted from this candidate>}}
 extracted_with: {model, run_id, output_tokens, at}
 ```
 
@@ -226,6 +226,7 @@ search:
   sufficient: true       # searches >= min_searches
 verified_fraction: 0.75  # closest_work entries with verification == verified
 investigated_with: {model, effort, cost_usd_equivalent, output_tokens, input_tokens, turns, duration_s, at}
+history: []             # earlier revisions (novelty, confidence, investigated_with) when re-investigated
 ```
 
 ### 5.4 Verification (our code, after the agent finishes)
