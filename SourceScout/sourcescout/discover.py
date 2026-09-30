@@ -1,3 +1,4 @@
+import logging
 import re
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit
@@ -19,6 +20,7 @@ _JOB_PATTERNS = [
     (re.compile(r"^https?://jobs\.ashbyhq\.com/([A-Za-z0-9_.-]+)"), "ashby",
      "https://api.ashbyhq.com/posting-api/job-board/{t}"),
 ]
+log = logging.getLogger("sourcescout")
 _FEED_TYPES = ("application/rss+xml", "application/atom+xml")
 
 
@@ -71,6 +73,7 @@ def discover(registry: Registry, http: Fetcher, cfg: DiscoveryCfg, refs: list[tu
             break
         fetches += 1
         known_hosts.add(host)
+        log.info("[discover %d/%d] %s", fetches, cfg.max_fetches_per_run, url)
         try:
             resp = http.get(url)
         except SourceFetchError as e:

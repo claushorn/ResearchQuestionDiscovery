@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 import unicodedata
@@ -22,6 +23,8 @@ from sourcescout.report import RunReport
 from sourcescout.schema import EXTRACTION_SCHEMA, ExtractionResult, length_violations
 from sourcescout.store import Store, StoredItem
 from sourcescout.timeutil import iso, utcnow
+
+log = logging.getLogger("sourcescout")
 
 SYSTEM_PROMPT = """You extract candidate technical problems from one source document for a problem-discovery pipeline.
 
@@ -184,20 +187,36 @@ def _params_for(ctx: ExtractContext, item: StoredItem) -> dict | None:
 
 
 def _run_sync(ctx: ExtractContext, client, limit: int | None) -> None:
-    for item in ctx.store.pending(limit):
-        params = _params_for(ctx, item)
-        if params is None:
-            continue
-        try:
-            message = client.messages.create(**params)
-        except anthropic.APIError as e:
-            _raise_if_not_transient(e)
-            _fail(ctx, item, f"api: {e}")
-            continue
-        except ItemExtractionError as e:
-            _fail(ctx, item, str(e))
-            continue
-        handle_message(ctx, item, message)
+    items = ctx.store.pending(limit)
+    log.info("extracting %d pending items (sync)", len(items))
+    for i, item in enumerate(items, 1):
+        stat = ctx.report.extract_stat(item.source_id)
+        before = (stat.candidates, stat.failed, stat.output_tokens, len(ctx.report.failures))
+        started = time.monotonic()
+        _extract_one(ctx, client, item)
+        took = time.monotonic() - started
+        if stat.failed > before[1]:
+            log.warning("[extract %d/%d] %s: %s -> FAILED %s (%.1fs)", i, len(items), item.source_id, item.title[:60],
+                        ctx.report.failures[-1]["error"][:200], took)
+        else:
+            log.info("[extract %d/%d] %s: %s -> %d candidates, %d output tokens (%.1fs)", i, len(items),
+                     item.source_id, item.title[:60], stat.candidates - before[0], stat.output_tokens - before[2], took)
+
+
+def _extract_one(ctx: ExtractContext, client, item: StoredItem) -> None:
+    params = _params_for(ctx, item)
+    if params is None:
+        return
+    try:
+        message = client.messages.create(**params)
+    except anthropic.APIError as e:
+        _raise_if_not_transient(e)
+        _fail(ctx, item, f"api: {e}")
+        return
+    except ItemExtractionError as e:
+        _fail(ctx, item, str(e))
+        return
+    handle_message(ctx, item, message)
 
 
 def run_extraction(ctx: ExtractContext, client, *, batch: bool, limit: int | None = None, sleep=time.sleep) -> None:
@@ -225,8 +244,13 @@ def recent_references(output_dir: Path, since: datetime) -> list[tuple[str, str]
     return out
 def _collect_batch(ctx: ExtractContext, client, batch_id: str, sleep) -> None:
     try:
-        while client.messages.batches.retrieve(batch_id).processing_status != "ended":
+        while (b := client.messages.batches.retrieve(batch_id)).processing_status != "ended":
+            counts = getattr(b, "request_counts", None)
+            log.info("batch %s: %s%s; next check in %ds", batch_id, b.processing_status,
+                     f" ({counts.processing} processing, {counts.succeeded} succeeded)" if counts else "",
+                     ctx.cfg.batch_poll_seconds)
             sleep(ctx.cfg.batch_poll_seconds)
+        log.info("batch %s ended; collecting results", batch_id)
         results = list(client.messages.batches.results(batch_id))
     except anthropic.NotFoundError as e:  # external: past the API's result retention, or another workspace
         for item in ctx.store.items_in_batch(batch_id).values():
@@ -272,4 +296,5 @@ def _run_batch(ctx: ExtractContext, client, limit: int | None, sleep) -> None:
         ctx.report.failures.append({"source_id": "*", "item_id": "*", "error": f"batch submit failed (items stay pending): {e}"})
         return
     ctx.store.mark_submitted([r["custom_id"] for r in requests], batch.id)
+    log.info("submitted batch %s with %d items", batch.id, len(requests))
     _collect_batch(ctx, client, batch.id, sleep)
