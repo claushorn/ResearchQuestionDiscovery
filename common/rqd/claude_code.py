@@ -1,49 +1,89 @@
-"""Extraction transport through the local Claude Code CLI (`claude -p`), billed to the user's Claude
-subscription instead of the API account. Exposes the same `messages.create(**params)` surface as
-`anthropic.Anthropic`, so extraction keeps one response-handling path (extract.handle_message)."""
+"""LLM calls through the local Claude Code CLI (`claude -p`), billed to the user's Claude subscription.
+
+- `messages.create(**params)`: one structured call, same surface as `anthropic.Anthropic` (SourceScout, PE).
+- `run_agent(...)`: a tool-using session (e.g. WebSearch/WebFetch) with a budget cap; tool calls are
+  read from the stream-json events, because the result's `server_tool_use` counter reports 0 for them.
+"""
 import json
 import os
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 
 import anthropic
 
-from rqd.errors import ExtractionConfigError, ItemExtractionError
+from rqd.errors import AgentError, ExtractionConfigError, ItemExtractionError
 
 _API_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")  # would silently switch billing to the API account
 TIMEOUT_S = 600
+AGENT_TIMEOUT_S = 1800
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    name: str
+    input: dict
+
+
+@dataclass
+class AgentResult:
+    structured_output: dict
+    tool_calls: list[ToolCall]
+    usage: dict
+    cost_usd: float
+    num_turns: int
+    duration_s: float
+    transcript: str = field(repr=False)
+
+
+def _run(args, *, input, env, cwd, timeout):
+    return subprocess.run(args, input=input, env=env, cwd=cwd, timeout=timeout, capture_output=True, text=True)
+
+
+def _args(*, model, effort, system, schema, tools, output_format) -> list[str]:
+    args = ["claude", "-p", "--safe-mode",  # safe mode: no CLAUDE.md, hooks, skills or plugins in context
+            "--model", model, "--effort", effort, "--output-format", output_format,
+            "--tools", ",".join(tools), "--system-prompt", system, "--json-schema", json.dumps(schema)]
+    if tools:
+        args += ["--allowedTools", ",".join(tools)]
+    if output_format == "stream-json":
+        args.append("--verbose")
+    return args
+
+
+def _raise_for_error(out: dict, transcript: str = "") -> None:
+    """Auth/usage-limit problems stop the whole command; anything else fails this one call."""
+    if not (out.get("is_error") or out.get("subtype") != "success"):
+        return
+    status = out.get("api_error_status")
+    text = str(out.get("result") or "; ".join(out.get("errors") or []) or out.get("subtype"))
+    if status in (401, 403) or "login" in text.lower():
+        raise ExtractionConfigError(f"Claude Code is not authenticated: {text}", fix="Run `claude` and /login")
+    if status == 429 or "usage limit" in text.lower():
+        raise ExtractionConfigError(f"Claude subscription usage limit: {text}",
+                                    fix="Wait for the limit to reset, then run again")
+    if "budget" in str(out.get("subtype")) or "budget" in str(out.get("terminal_reason")):
+        raise AgentError(f"agent stopped: budget exhausted ({text}; spent ${out.get('total_cost_usd') or 0:.2f})",
+                         transcript)
+    raise AgentError(f"claude -p error (status {status}): {text[:300]}", transcript)
 
 
 class _Messages:
-    def __init__(self, runner):
-        self._runner = runner
+    def __init__(self, client: "ClaudeCodeClient"):
+        self._client = client
 
     def create(self, *, model, system, output_config, messages, **_unused) -> SimpleNamespace:
         # max_tokens has no CLI equivalent; the output budget is measured and reported per candidate.
-        args = ["claude", "-p", "--safe-mode",  # safe mode: no CLAUDE.md, hooks, skills or plugins in context
-                "--model", model, "--effort", output_config["effort"], "--output-format", "json",
-                "--tools", "", "--system-prompt", system[0]["text"],
-                "--json-schema", json.dumps(output_config["format"]["schema"])]
-        env = {k: v for k, v in os.environ.items() if k not in _API_ENV}
-        try:
-            proc = self._runner(args, input=messages[0]["content"], env=env, cwd=tempfile.gettempdir(),
-                                timeout=TIMEOUT_S)
-        except subprocess.TimeoutExpired as e:
-            raise ItemExtractionError(f"claude -p timed out after {TIMEOUT_S}s") from e
+        args = _args(model=model, effort=output_config["effort"], system=system[0]["text"],
+                     schema=output_config["format"]["schema"], tools=[], output_format="json")
+        proc = self._client._call(args, messages[0]["content"], TIMEOUT_S)
         try:
             out = json.loads(proc.stdout)
         except json.JSONDecodeError as e:
             raise ItemExtractionError(f"claude -p exit {proc.returncode}: {(proc.stderr or proc.stdout)[:300]}") from e
-        if out.get("is_error") or out.get("subtype") != "success":
-            status, text = out.get("api_error_status"), str(out.get("result") or "")
-            if status in (401, 403) or "login" in text.lower():
-                raise ExtractionConfigError(f"Claude Code is not authenticated: {text}", fix="Run `claude` and /login")
-            if status == 429 or "limit" in text.lower():
-                raise ExtractionConfigError(f"Claude subscription usage limit: {text}",
-                                            fix="Wait for the limit to reset, then run extract again")
-            raise ItemExtractionError(f"claude -p error (status {status}): {text[:300]}")
+        _raise_for_error(out)
         if out.get("structured_output") is None:
             raise ItemExtractionError("claude -p returned no structured_output")
         u = out.get("usage") or {}
@@ -55,13 +95,42 @@ class _Messages:
                                   cache_read_input_tokens=u.get("cache_read_input_tokens", 0)))
 
 
-def _run(args, *, input, env, cwd, timeout):
-    return subprocess.run(args, input=input, env=env, cwd=cwd, timeout=timeout, capture_output=True, text=True)
-
-
 class ClaudeCodeClient:
     def __init__(self, runner=_run):
-        self.messages = _Messages(runner)
+        self._runner = runner
+        self.messages = _Messages(self)
+
+    def _call(self, args: list[str], stdin: str, timeout: int) -> subprocess.CompletedProcess:
+        env = {k: v for k, v in os.environ.items() if k not in _API_ENV}
+        try:
+            return self._runner(args, input=stdin, env=env, cwd=tempfile.gettempdir(), timeout=timeout)
+        except subprocess.TimeoutExpired as e:
+            raise ItemExtractionError(f"claude -p timed out after {timeout}s") from e
+
+    def run_agent(self, *, model: str, effort: str, system: str, user: str, schema: dict, tools: list[str],
+                  max_budget_usd: float) -> AgentResult:
+        args = _args(model=model, effort=effort, system=system, schema=schema, tools=tools,
+                     output_format="stream-json") + ["--max-budget-usd", str(max_budget_usd)]
+        proc = self._call(args, user, AGENT_TIMEOUT_S)
+        transcript = proc.stdout
+        events = []
+        for line in transcript.splitlines():
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue  # non-event output; the full transcript is kept verbatim
+        results = [e for e in events if e.get("type") == "result"]
+        if not results:
+            raise AgentError(f"claude -p exit {proc.returncode}: no result event ({(proc.stderr or '')[:200]})",
+                             transcript)
+        out = results[-1]
+        _raise_for_error(out, transcript)
+        if out.get("structured_output") is None:
+            raise AgentError("agent finished without structured_output", transcript)
+        calls = [ToolCall(b.get("name", ""), b.get("input") or {}) for e in events if e.get("type") == "assistant"
+                 for b in (e.get("message") or {}).get("content") or [] if b.get("type") == "tool_use"]
+        return AgentResult(out["structured_output"], calls, out.get("usage") or {}, out.get("total_cost_usd") or 0.0,
+                           out.get("num_turns") or 0, (out.get("duration_ms") or 0) / 1000, transcript)
 
 
 def make_client(backend: str):

@@ -20,3 +20,11 @@ class ItemExtractionError(Exception):
 
 class SourceFetchError(Exception):
     """External failure while fetching one source; recorded and reported, the run continues."""
+
+
+class AgentError(ItemExtractionError):
+    """An agent session (claude -p with tools) ended without a usable result; the transcript is kept for audit."""
+
+    def __init__(self, message: str, transcript: str = ""):
+        super().__init__(message)
+        self.transcript = transcript
