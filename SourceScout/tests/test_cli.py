@@ -37,3 +37,11 @@ def test_promote_and_retire(paths):
 def test_report_without_runs(paths):
     res = runner.invoke(app, ["--root", str(paths.root), "report"])
     assert res.exit_code == 1 and "no run reports" in res.output.lower()
+
+
+def test_env_file_next_to_scout_dir_is_loaded(paths, monkeypatch):
+    monkeypatch.delenv("SOURCESCOUT_TEST_VAR", raising=False)
+    (paths.root.parent / ".env").write_text("SOURCESCOUT_TEST_VAR=from-dotenv\n")
+    assert runner.invoke(app, ["--root", str(paths.root), "sources", "list"]).exit_code == 0
+    import os
+    assert os.environ.get("SOURCESCOUT_TEST_VAR") == "from-dotenv"

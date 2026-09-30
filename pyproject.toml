@@ -8,6 +8,7 @@ dependencies = [
     "feedparser>=6.0.14",
     "httpx>=0.28.1",
     "pydantic>=2.13.5",
+    "python-dotenv>=1.2.3",
     "pyyaml>=6.0.3",
     "selectolax>=0.4.13",
     "typer>=0.27.2",

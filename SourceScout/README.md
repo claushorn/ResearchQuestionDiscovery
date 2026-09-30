@@ -14,7 +14,7 @@ candidate records only — no value estimation or triage (later stages).
 
 ## Usage
 ```bash
-export ANTHROPIC_API_KEY=...            # or `ant auth login`
+# ANTHROPIC_API_KEY is read from ResearchQuestionDiscovery/.env (git-ignored) or the environment
 uv run sourcescout run                  # scan -> extract (batch) -> discover -> report
 uv run sourcescout run --sync --limit 5 # small synchronous run
 uv run sourcescout scan --tier A --force

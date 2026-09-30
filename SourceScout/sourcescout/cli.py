@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import typer
+from dotenv import load_dotenv
 
 from sourcescout.adapters import KINDS, REQUIRED_PARAMS
 from sourcescout.categories import load_categories
@@ -55,6 +56,7 @@ def clean_errors(fn):
 
 @app.callback()
 def main(ctx: typer.Context, root: Path = typer.Option(DEFAULT_ROOT, "--root", help="SourceScout directory")):
+    load_dotenv(root.parent / ".env", override=False)  # repo-root .env holds ANTHROPIC_API_KEY
     ctx.obj = root
 
 
