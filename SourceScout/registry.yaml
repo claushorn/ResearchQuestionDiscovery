@@ -1,0 +1,433 @@
+sources:
+- id: grants-gov-ml
+  name: 'grants.gov: machine learning'
+  category: gov_solicitation
+  kind: grants_gov
+  url: https://api.grants.gov/v1/api/search2
+  params:
+    keyword: machine learning
+    rows: 50
+- id: grants-gov-ai
+  name: 'grants.gov: artificial intelligence'
+  category: gov_solicitation
+  kind: grants_gov
+  url: https://api.grants.gov/v1/api/search2
+  params:
+    keyword: artificial intelligence
+    rows: 50
+- id: grants-gov-protein
+  name: 'grants.gov: protein engineering'
+  category: gov_solicitation
+  kind: grants_gov
+  url: https://api.grants.gov/v1/api/search2
+  params:
+    keyword: protein engineering
+    rows: 50
+- id: grants-gov-rl
+  name: 'grants.gov: reinforcement learning'
+  category: gov_solicitation
+  kind: grants_gov
+  url: https://api.grants.gov/v1/api/search2
+  params:
+    keyword: reinforcement learning
+    rows: 50
+- id: sbir-topics
+  name: SBIR.gov open topics
+  category: gov_solicitation
+  kind: html_list
+  url: https://www.sbir.gov/topics?status=1
+  params:
+    link_selector: a[href^="/topics/"]
+    max_items: 40
+- id: arpa-h-programs
+  name: ARPA-H programs and initiatives
+  category: gov_solicitation
+  kind: html_list
+  url: https://arpa-h.gov/explore-funding/open-funding-opportunities
+  params:
+    link_selector: a[href]
+    link_pattern: /explore-funding/(programs|initiatives-and-sprints)/[^/]+$
+- id: aria-programmes
+  name: ARIA opportunity-space programmes
+  category: gov_solicitation
+  kind: html_list
+  url: https://aria.org.uk/opportunity-spaces
+  params:
+    link_selector: a[href^="/opportunity-spaces/"]
+    link_pattern: /opportunity-spaces/[^/]+/[^/]+$
+- id: drivendata
+  name: DrivenData competitions
+  category: challenge_platform
+  kind: html_list
+  url: https://www.drivendata.org/competitions/
+  params:
+    link_selector: a[href^="/competitions/"]
+    link_pattern: /competitions/\d+/[^/]+/?$
+    max_items: 20
+- id: aicrowd
+  name: AIcrowd challenges
+  category: challenge_platform
+  kind: html_list
+  url: https://www.aicrowd.com/challenges
+  params:
+    link_selector: a[href^="/challenges/"]
+    link_pattern: /challenges/[^/]+$
+    max_items: 20
+- id: proteinbase-competitions
+  name: Adaptyv / Proteinbase protein-design competitions
+  category: challenge_platform
+  kind: html_list
+  url: https://proteinbase.com/competitions
+  params:
+    link_selector: a[href^="/competitions/"]
+    link_pattern: /competitions/[^/]+$
+- id: greenhouse-anthropic
+  name: anthropic jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/anthropic/jobs?content=true
+  params: {}
+- id: ashby-openai
+  name: openai jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/openai
+  params: {}
+- id: ashby-cohere
+  name: cohere jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/cohere
+  params: {}
+- id: greenhouse-isomorphiclabs
+  name: isomorphic-labs jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/isomorphiclabs/jobs?content=true
+  params: {}
+- id: greenhouse-generatebiomedicines
+  name: generate-biomedicines jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/generatebiomedicines/jobs?content=true
+  params: {}
+- id: greenhouse-recursionpharmaceuticals
+  name: recursion jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/recursionpharmaceuticals/jobs?content=true
+  params: {}
+- id: ashby-insitro
+  name: insitro jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/insitro
+  params: {}
+- id: ashby-absci
+  name: absci jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/absci
+  params: {}
+- id: ashby-cradlebio
+  name: cradle jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/cradlebio
+  params: {}
+- id: greenhouse-profluent
+  name: profluent jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/profluent/jobs?content=true
+  params: {}
+- id: greenhouse-waymo
+  name: waymo jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/waymo/jobs?content=true
+  params: {}
+- id: greenhouse-nuro
+  name: nuro jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/nuro/jobs?content=true
+  params: {}
+- id: greenhouse-instacart
+  name: instacart jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/instacart/jobs?content=true
+  params: {}
+- id: greenhouse-doordashusa
+  name: doordash jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/doordashusa/jobs?content=true
+  params: {}
+- id: greenhouse-flexport
+  name: flexport jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/flexport/jobs?content=true
+  params: {}
+- id: ashby-krakentech
+  name: kraken-octopus jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/krakentech
+  params: {}
+- id: greenhouse-janestreet
+  name: jane-street jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/janestreet/jobs?content=true
+  params: {}
+- id: greenhouse-wehrtyou
+  name: hudson-river-trading jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/wehrtyou/jobs?content=true
+  params: {}
+- id: greenhouse-databricks
+  name: databricks jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/databricks/jobs?content=true
+  params: {}
+- id: greenhouse-scaleai
+  name: scale-ai jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/scaleai/jobs?content=true
+  params: {}
+- id: lever-palantir
+  name: palantir jobs
+  category: job_board
+  kind: lever
+  url: https://api.lever.co/v0/postings/palantir?mode=json
+  params: {}
+- id: ashby-physicalintelligence
+  name: physical-intelligence jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/physicalintelligence
+  params: {}
+- id: ashby-chaidiscovery
+  name: chai-discovery jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/chaidiscovery
+  params: {}
+- id: ashby-latentlabs
+  name: latent-labs jobs
+  category: job_board
+  kind: ashby
+  url: https://api.ashbyhq.com/posting-api/job-board/latentlabs
+  params: {}
+- id: greenhouse-arcinstitute
+  name: arc-institute jobs
+  category: job_board
+  kind: greenhouse
+  url: https://boards-api.greenhouse.io/v1/boards/arcinstitute/jobs?content=true
+  params: {}
+- id: yc-rfs
+  name: YC Requests for Startups
+  category: investor_thesis
+  kind: page
+  url: https://www.ycombinator.com/rfs
+  params: {}
+- id: rss-netflix
+  name: netflix
+  category: tech_blog
+  kind: rss
+  url: https://netflixtechblog.com/feed
+  params:
+    max_items: 20
+- id: rss-meta-eng
+  name: meta-eng
+  category: tech_blog
+  kind: rss
+  url: https://engineering.fb.com/feed/
+  params:
+    max_items: 20
+- id: rss-spotify-eng
+  name: spotify-eng
+  category: tech_blog
+  kind: rss
+  url: https://engineering.atspotify.com/feed/
+  params:
+    max_items: 20
+- id: rss-airbnb-eng
+  name: airbnb-eng
+  category: tech_blog
+  kind: rss
+  url: https://medium.com/feed/airbnb-engineering
+  params:
+    max_items: 20
+- id: rss-google-research
+  name: google-research
+  category: tech_blog
+  kind: rss
+  url: https://research.google/blog/rss/
+  params:
+    max_items: 20
+- id: rss-amazon-science
+  name: amazon-science
+  category: tech_blog
+  kind: rss
+  url: https://www.amazon.science/index.rss
+  params:
+    max_items: 20
+- id: rss-deepmind
+  name: deepmind
+  category: tech_blog
+  kind: rss
+  url: https://deepmind.google/blog/rss.xml
+  params:
+    max_items: 20
+- id: rss-openai-news
+  name: openai-news
+  category: tech_blog
+  kind: rss
+  url: https://openai.com/news/rss.xml
+  params:
+    max_items: 20
+- id: rss-huggingface
+  name: huggingface
+  category: tech_blog
+  kind: rss
+  url: https://huggingface.co/blog/feed.xml
+  params:
+    max_items: 20
+- id: rss-databricks-blog
+  name: databricks-blog
+  category: tech_blog
+  kind: rss
+  url: https://www.databricks.com/feed
+  params:
+    max_items: 20
+- id: rss-cloudflare
+  name: cloudflare
+  category: tech_blog
+  kind: rss
+  url: https://blog.cloudflare.com/rss/
+  params:
+    max_items: 20
+- id: rss-instacart-tech
+  name: instacart-tech
+  category: tech_blog
+  kind: rss
+  url: https://tech.instacart.com/feed
+  params:
+    max_items: 20
+- id: rss-stripe
+  name: stripe
+  category: tech_blog
+  kind: rss
+  url: https://stripe.com/blog/feed.rss
+  params:
+    max_items: 20
+- id: rss-slack-eng
+  name: slack-eng
+  category: tech_blog
+  kind: rss
+  url: https://slack.engineering/feed/
+  params:
+    max_items: 20
+- id: rss-lyft-eng
+  name: lyft-eng
+  category: tech_blog
+  kind: rss
+  url: https://eng.lyft.com/feed
+  params:
+    max_items: 20
+- id: rss-dropbox-tech
+  name: dropbox-tech
+  category: tech_blog
+  kind: rss
+  url: https://dropbox.tech/feed
+  params:
+    max_items: 20
+- id: rss-salesforce-eng
+  name: salesforce-eng
+  category: tech_blog
+  kind: rss
+  url: https://engineering.salesforce.com/feed/
+  params:
+    max_items: 20
+- id: rss-bair
+  name: bair
+  category: tech_blog
+  kind: rss
+  url: https://bair.berkeley.edu/blog/feed.xml
+  params:
+    max_items: 20
+- id: rss-nvidia-dev
+  name: nvidia-dev
+  category: tech_blog
+  kind: rss
+  url: https://developer.nvidia.com/blog/feed
+  params:
+    max_items: 20
+- id: rss-aws-ml
+  name: aws-ml
+  category: tech_blog
+  kind: rss
+  url: https://aws.amazon.com/blogs/machine-learning/feed/
+  params:
+    max_items: 20
+- id: rss-msr
+  name: msr
+  category: tech_blog
+  kind: rss
+  url: https://www.microsoft.com/en-us/research/feed/
+  params:
+    max_items: 20
+- id: rss-grab-tech
+  name: grab-tech
+  category: tech_blog
+  kind: rss
+  url: https://engineering.grab.com/feed.xml
+  params:
+    max_items: 20
+- id: rss-shopify-eng
+  name: shopify-eng
+  category: tech_blog
+  kind: rss
+  url: https://shopify.engineering/blog.atom
+  params:
+    max_items: 20
+- id: rss-zalando-eng
+  name: zalando-eng
+  category: tech_blog
+  kind: rss
+  url: https://engineering.zalando.com/atom.xml
+  params:
+    max_items: 20
+- id: rss-booking-ai
+  name: booking-ai
+  category: tech_blog
+  kind: rss
+  url: https://booking.ai/feed
+  params:
+    max_items: 20
+- id: rss-ebay-tech
+  name: ebay-tech
+  category: tech_blog
+  kind: rss
+  url: https://tech.ebayinc.com/rss/
+  params:
+    max_items: 20
+- id: kdd26-ads-cfp
+  name: KDD 2026 Applied Data Science track call
+  category: conference_workshop
+  kind: page
+  url: https://kdd2026.kdd.org/applied-data-science-ads-track-call-for-papers/
+  params: {}
+- id: recsys26-call
+  name: RecSys 2026 call for contributions
+  category: conference_workshop
+  kind: page
+  url: https://recsys.acm.org/recsys26/call/
+  params: {}

@@ -1,0 +1,21 @@
+extraction:
+  backend: claude_code             # api: ANTHROPIC_API_KEY (pay per token, batches) | claude_code: `claude -p` on your Claude subscription (sync only)
+  model: claude-opus-5-5
+  effort: low
+  max_tokens: 4000                 # hard stop per request
+  token_budget_per_candidate: 500  # reported as a violation when exceeded
+  max_item_chars: 20000            # items longer than this are truncated and counted
+  batch_poll_seconds: 60
+lifecycle:
+  promote_within_scans: 5          # candidate: promoted on first candidate, retired after this many scans without one
+  max_consecutive_failures: 5
+  retire_zero_yield_active: 20     # active: retired after this many scans without a candidate
+http:
+  user_agent: "SourceScout/0.1 (research source monitor)"
+  timeout_s: 30
+  min_interval_s_per_host: 2.0
+scan:
+  job_title_include: "(?i)research|scientist|machine learning|\\bml\\b|reinforcement|optimi[sz]ation|protein|decision|applied ai|member of technical staff"            # job_board sources without their own title_include
+discovery:
+  max_fetches_per_run: 30
+  ignore_hosts: [twitter.com, x.com, linkedin.com, facebook.com, instagram.com, youtube.com, google.com, wikipedia.org, github.com, medium.com, t.co, bit.ly]
