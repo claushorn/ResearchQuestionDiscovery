@@ -121,7 +121,10 @@ One class per `kind`, interface
 | `page` | one page = one item (YC RFS, single CFP pages) |
 
 The SBIR.gov public API returned HTTP 403 on 2026-09-30; SBIR topics are scanned
-from the static `sbir.gov/topics` listing via `html_list`. Every kind accepts
+from the static `sbir.gov/topics` listing via `html_list`. `html_list` never collects finished items: `skip_link_text` (entries the listing marks
+ended/closed/completed; every link to such a URL is skipped) and `stop_at_heading` (nothing
+below e.g. a "Completed competitions" heading); challenge sources use them, or the site's own
+active filter (AIcrowd `?challenge_filter=active`). Every kind accepts
 `title_include` / `title_exclude` regex params (job-board sources without
 their own `title_include` use `config.yaml` `scan.job_title_include`) (deterministic pre-filter, e.g.
 to skip non-research job ads before any LLM call).

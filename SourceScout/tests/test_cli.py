@@ -62,3 +62,15 @@ def test_run_saves_report_even_when_extraction_aborts(paths, monkeypatch):
 def test_extract_retry_failed_flag_exists():
     res = runner.invoke(app, ["extract", "--help"])
     assert "--retry-failed" in res.output
+
+
+def test_sources_check_reports_item_errors_instead_of_aborting(paths, monkeypatch):
+    from rqd_testing import make_fetcher
+    from sourcescout import cli as ss_cli
+    write_registry(paths, [{"id": "l", "name": "L", "category": "tech_blog", "kind": "html_list", "url": "https://s.example/t",
+                            "params": {"link_selector": "a"}}])
+    fetcher = make_fetcher({"GET https://s.example/t": '<a href="/1">1</a><a href="/2">2</a>',
+                            "GET https://s.example/2": "<html><body>ok</body></html>"})
+    monkeypatch.setattr(ss_cli, "Fetcher", lambda cfg: fetcher)
+    res = runner.invoke(app, ["--root", str(paths.root), "sources", "check", "l"])
+    assert res.exit_code == 0 and "l: 1 items" in res.output and "item error: https://s.example/1" in res.output

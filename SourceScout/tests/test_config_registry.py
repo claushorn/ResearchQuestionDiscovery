@@ -93,3 +93,10 @@ def test_registry_rejects_bad_selector_or_link_pattern(paths, params, needle):
     with pytest.raises(RegistryError) as e:
         make_registry(paths, [src(kind="html_list", params=params)], kinds)
     assert needle in str(e.value) and "s1" in str(e.value)
+
+
+@pytest.mark.parametrize("key", ["skip_link_text", "stop_at_heading"])
+def test_registry_validates_new_listing_regexes(paths, key):
+    kinds = KINDS | {"html_list": ("link_selector",)}
+    with pytest.raises(RegistryError, match=f"invalid regex in {key}"):
+        make_registry(paths, [src(kind="html_list", params={"link_selector": "a", key: "("})], kinds)

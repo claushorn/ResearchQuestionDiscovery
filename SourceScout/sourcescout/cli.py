@@ -160,13 +160,16 @@ def sources_check(ctx: typer.Context, source_id: str):
     """Fetch one source without storing anything; prints what an extraction would see."""
     env = _env(ctx.obj)
     s = env.registry.get(source_id)
+    item_errors: list[str] = []
     try:
-        items = KINDS[s.kind].fetch(s, env.http, lambda url: False)
+        items = KINDS[s.kind].fetch(s, env.http, lambda url: False, item_errors)
     except SourceFetchError as e:
         raise RqdError(f"{source_id}: {e}", fix="Correct the url/params in registry.yaml or drop the source")
     typer.echo(f"{source_id}: {len(items)} items")
     for it in items[:3]:
         typer.echo(f"  - {it.title[:80]} | {it.url} | {len(it.text)} chars, {len(it.links)} links")
+    for err in item_errors:  # same per-item handling as scan: the source stays usable
+        typer.echo(f"  item error: {err}")
 
 
 def _set_status(root: Path, source_id: str, status: str) -> None:
