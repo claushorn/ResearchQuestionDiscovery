@@ -54,6 +54,7 @@ class PERunReport:
     output_tokens: int = 0
     input_tokens: int = 0
     invalid_merges: list[str] = field(default_factory=list)
+    superseded: list[str] = field(default_factory=list)  # candidate's item was re-extracted by SourceScout
     failures: list[str] = field(default_factory=list)
 
     def tokens_per_candidate(self) -> float | None:
@@ -72,7 +73,9 @@ class PERunReport:
                  f"unverified explicit quotes: {self.unverified}  structured-output retries: {self.retries}",
                  f"output tokens: {self.output_tokens}  per candidate: {f'{tpc:.0f}' if tpc is not None else 'n/a'}"
                  + (f"  BUDGET VIOLATION (> {budget})" if tpc is not None and tpc > budget else f"  (limit {budget})")]
-        for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges), ("FAILURES", self.failures)]:
+        for title, entries in [("INVALID MERGE IDS (treated as new)", self.invalid_merges),
+                               ("SUPERSEDED (item has a newer revision; its newer candidates are processed instead)",
+                                self.superseded), ("FAILURES", self.failures)]:
             lines += ["", f"{title}: {len(entries)}"] + [f"  {x}" for x in entries]
         return "\n".join(lines)
 
@@ -110,10 +113,15 @@ def new_candidates(ctx: PEContext) -> list[dict]:
     """Unprocessed SourceScout candidates, tier A first, oldest first within a tier."""
     out = []
     for path in sorted((ctx.ss_root / "output").glob("*/*.yaml")):
-        c = yaml.safe_load(path.read_text(encoding="utf-8"))
+        try:
+            c = yaml.safe_load(path.read_text(encoding="utf-8"))
+            key = (c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"])
+        except (yaml.YAMLError, KeyError, TypeError) as e:
+            ctx.report.failures.append(f"{path.name}: unreadable candidate file ({e!r})")
+            continue
         if not ctx.state.is_processed(c["candidate_id"]):
-            out.append(c)
-    return sorted(out, key=lambda c: (c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"]))
+            out.append((key, c))
+    return [c for _, c in sorted(out, key=lambda kc: kc[0])]
 
 
 def render(candidate: dict, item_text: str, shortlisted: list[str], docs: dict[str, str]) -> str:
@@ -133,11 +141,16 @@ def build_params(ctx: PEContext, candidate: dict, item_text: str, shortlisted: l
             "messages": [{"role": "user", "content": render(candidate, item_text, shortlisted, ctx.docs)}]}
 
 
-def process(ctx: PEContext, client, candidate: dict) -> None:
+def process(ctx: PEContext, client, candidate: dict) -> str:
+    """Returns the outcome: 'new', 'merged' or 'superseded'."""
     cid = candidate["candidate_id"]
     item = ctx.ss_store.get(candidate["item_id"])
     if item is None:
         raise ItemExtractionError(f"source item {candidate['item_id']} is not in the SourceScout store")
+    if item.revision != candidate["revision"]:  # the store only holds the latest text; never extract from another
+        ctx.state.record(cid, "", "superseded", iso(utcnow()))
+        ctx.report.superseded.append(cid)
+        return "superseded"
     shortlisted = shortlist(candidate["candidate_problem"]["statement"], ctx.docs, ctx.cfg.extraction.shortlist_size)
     try:
         message = client.messages.create(**build_params(ctx, candidate, item.text, shortlisted))
@@ -154,20 +167,21 @@ def process(ctx: PEContext, client, candidate: dict) -> None:
     if out.merge_with is not None and out.merge_with not in shortlisted:
         ctx.report.invalid_merges.append(f"{cid}: {out.merge_with}")
         out = out.model_copy(update={"merge_with": None})
+    verified = quote_in_text(out.explicit_evidence, item.text) if out.unsolved_explicit else None
+    ctx.report.unverified += verified is False
     if out.merge_with is not None:
-        record = merge_into(ctx.problems.load(out.merge_with), candidate, out, extracted_with)
+        record = merge_into(ctx.problems.load(out.merge_with), candidate, out, verified, extracted_with)
         ctx.problems.save(record, record["problem_id"])
         ctx.state.record(cid, out.merge_with, "merged", now)
         ctx.report.merged += 1
-        return
-    verified = quote_in_text(out.explicit_evidence, item.text) if out.unsolved_explicit else None
-    ctx.report.unverified += verified is False
+        return "merged"
     pid = problem_id_for(cid)
     record = new_record(pid, candidate, out, verified, extracted_with)
     ctx.problems.save(record, record["problem_id"])
     ctx.docs[pid] = _doc(record)
     ctx.state.record(cid, pid, "new", now)
     ctx.report.new += 1
+    return "new"
 
 
 def run_extraction(ctx: PEContext, client, limit: int | None = None) -> None:
@@ -175,14 +189,12 @@ def run_extraction(ctx: PEContext, client, limit: int | None = None) -> None:
     log.info("processing %d new candidates (%d problems on file)", len(candidates), len(ctx.docs))
     for i, c in enumerate(candidates, 1):
         started = time.monotonic()
-        before = (ctx.report.new, ctx.report.merged)
         try:
-            process(ctx, client, c)
+            outcome = process(ctx, client, c)
         except ItemExtractionError as e:
             ctx.report.failures.append(f"{c['candidate_id']}: {e}")
             log.warning("[pe %d/%d] %s -> FAILED %s", i, len(candidates), c["candidate_id"], str(e)[:200])
             continue
-        ctx.report.processed += 1
-        outcome = "new problem" if ctx.report.new > before[0] else "merged"
+        ctx.report.processed += outcome != "superseded"
         log.info("[pe %d/%d] %s (%s) -> %s (%.1fs)", i, len(candidates), c["candidate_id"], c["source_id"],
                  outcome, time.monotonic() - started)

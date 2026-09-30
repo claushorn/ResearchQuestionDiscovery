@@ -1,5 +1,6 @@
 import fcntl
 import functools
+from contextlib import contextmanager
 import logging
 import sys
 from pathlib import Path
@@ -28,18 +29,25 @@ def clean_errors(fn):
     return wrapper
 
 
+@contextmanager
+def hold_lock(root: Path):
+    """Exclusive, non-blocking run lock of one capability directory (<root>/data/run.lock)."""
+    lock_path = Path(root) / "data" / "run.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as e:
+            raise RqdError(f"another command is running on this directory ({root})",
+                           fix="Wait for it to finish (or stop it), then run again") from e
+        yield
+
+
 def exclusive(fn):
     """One mutating command per capability directory at a time (state, registry, API usage)."""
     @functools.wraps(fn)
     def wrapper(ctx: typer.Context, *args, **kwargs):
-        lock_path = Path(ctx.obj) / "data" / "run.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock_path, "w") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError as e:
-                raise RqdError("another command is running on this directory",
-                                 fix="Wait for it to finish (or stop it), then run again") from e
+        with hold_lock(ctx.obj):
             return fn(ctx, *args, **kwargs)
     return wrapper
 

@@ -41,3 +41,21 @@ def test_missing_sourcescout_store_is_clean_error(root):
 def test_show_unknown_problem_is_clean_error(root):
     res = runner.invoke(app, ["--root", str(root), "show", "prob-nope"])
     assert res.exit_code == 1 and "ERROR: no problem prob-nope" in res.output
+
+
+def test_run_refused_while_sourcescout_runs(root, tmp_path, monkeypatch):
+    import fcntl
+    seed(tmp_path / "SourceScout", [candidate(0)])
+    monkeypatch.setattr(cli, "make_client", lambda backend: FakeClient([message(pe_output())]))
+    held = open(tmp_path / "SourceScout" / "data" / "run.lock", "w")
+    fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        res = runner.invoke(app, ["--root", str(root), "run"])
+    finally:
+        held.close()
+    assert res.exit_code == 1 and "another command is running" in res.output
+
+
+def test_list_rejects_unknown_sort(root):
+    res = runner.invoke(app, ["--root", str(root), "list", "--sort", "foo"])
+    assert res.exit_code != 0 and "foo" in res.output

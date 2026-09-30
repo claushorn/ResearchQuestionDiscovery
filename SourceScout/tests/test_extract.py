@@ -153,3 +153,13 @@ def test_tokens_of_empty_items_are_reported_separately(ctx):
                                     message({"candidates": [cand()]}, output_tokens=450)]), batch=False)
     st = ctx.report.extract["g"]
     assert (st.output_tokens, st.empty_output_tokens, st.tokens_per_candidate()) == (530, 80, 450)
+
+
+def test_candidate_files_are_written_atomically_via_the_shared_store(ctx, monkeypatch):
+    import rqd.records
+    saved = []
+    real = rqd.records.YamlStore.save
+    monkeypatch.setattr(rqd.records.YamlStore, "save", lambda self, rec, rid: (saved.append(rid), real(self, rec, rid)))
+    add_item(ctx)
+    run_extraction(ctx, FakeClient([message({"candidates": [cand()]})]), batch=False)
+    assert saved and saved[0].startswith("cand-")

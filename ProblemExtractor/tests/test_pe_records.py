@@ -27,7 +27,7 @@ def test_merge_appends_source_keeps_text_and_logs_extraction():
     c0, c1 = candidate(0), candidate(1, source_id="greenhouse-acme", tier="B")
     rec = new_record("prob-x", c0, PEOutput.model_validate(pe_output()), True, W)
     out1 = PEOutput.model_validate(pe_output(merge_with="prob-x", statement="A differently worded statement."))
-    merged = merge_into(rec, c1, out1, W)
+    merged = merge_into(rec, c1, out1, True, W)
     assert merged["revision"] == 2 and [s["tier"] for s in merged["sources"]] == ["A", "B"]
     assert merged["problem"]["precise_statement"].startswith("Plan long-horizon")
     assert merged["merge_log"][1]["decision"] == "merged" and merged["merge_log"][1]["reason"] == "same capability"

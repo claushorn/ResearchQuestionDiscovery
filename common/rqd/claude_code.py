@@ -107,7 +107,8 @@ class ClaudeCodeClient:
         try:
             return self._runner(args, input=stdin, env=env, cwd=tempfile.gettempdir(), timeout=timeout)
         except subprocess.TimeoutExpired as e:
-            raise ItemExtractionError(f"claude -p timed out after {timeout}s") from e
+            partial = e.output.decode() if isinstance(e.output, bytes) else (e.output or "")
+            raise AgentError(f"claude -p timed out after {timeout}s", partial) from e
 
     def run_agent(self, *, model: str, effort: str, system: str, user: str, schema: dict, tools: list[str],
                   max_budget_usd: float) -> AgentResult:

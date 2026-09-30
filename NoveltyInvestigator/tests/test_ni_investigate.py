@@ -119,3 +119,26 @@ def test_cli_investigate_list_show(env, monkeypatch):
     assert "strongest_counterargument" in runner.invoke(app, ["--root", str(env), "show", "prob-a"]).output
     res = runner.invoke(app, ["--root", str(env), "investigate", "prob-zzz"])
     assert res.exit_code == 1 and "ERROR: no problem prob-zzz" in res.output
+
+
+def test_timeout_is_reported_and_next_problem_continues(env):
+    class TimeoutThenOk(Runner):
+        def __call__(self, args, *, input, env, cwd, timeout):
+            if not self.calls:
+                self.calls.append(input)
+                raise subprocess.TimeoutExpired(args, timeout, output=stream(tool_use("WebSearch", query="q")))
+            return super().__call__(args, input=input, env=env, cwd=cwd, timeout=timeout)
+    paths = NIPaths(env)
+    ctx = NIContext.open(paths, load_config(paths.config), client=ClaudeCodeClient(runner=TimeoutThenOk([agent_stream()])),
+                         fetcher=make_fetcher(PAGES), run_id="RUN1")
+    failures = investigate(ctx, ["prob-a", "prob-b"])
+    assert list(failures) == ["prob-a"] and "timed out" in failures["prob-a"]
+    assert ctx.investigations.exists("prob-b") and list((env / "data" / "transcripts").glob("prob-a-*"))
+
+
+def test_out_of_range_evidence_numbers_are_dropped_and_listed(env):
+    out = ni_output(already_solved_evidence=[1, 7, 0, -1])
+    ctx, _ = context(env, [agent_stream(output=out)])
+    investigate(ctx, ["prob-a"])
+    check = ctx.investigations.load("prob-a")["checks"]["already_solved"]
+    assert check["evidence"] == [1] and check["invalid_evidence"] == [7, 0, -1]

@@ -122,3 +122,36 @@ def test_pe_uses_high_effort_with_a_higher_reported_limit(ctx, tmp_path):
     assert "per candidate: 1900" in pe.report.render(2000) and "BUDGET VIOLATION" not in pe.report.render(2000)
     assert "BUDGET VIOLATION (> 1500)" in pe.report.render(1500)
     assert "known_solution_inferred" in client.calls[0]["system"][0]["text"]
+
+
+def test_merged_candidate_quote_is_verified_and_counted(ctx, tmp_path):
+    c0, c1 = candidate(0), candidate(1, statement="Planning long horizons for warehouse robots under uncertainty.")
+    seed(tmp_path / "SourceScout", [c0, c1])
+    pid = problem_id_for(c0["candidate_id"])
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output()), message(pe_output(merge_with=pid, evidence="NOT IN THE DOCUMENT"))]))
+    assert pe.report.unverified == 1
+    assert pe.problems.load(pid)["merge_log"][1]["extracted"]["unsolvedness"]["evidence_verified"] is False
+
+
+def test_candidate_from_superseded_item_revision_is_not_extracted(ctx, tmp_path):
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    from sourcescout.adapters.base import RawItem
+    from sourcescout.store import Store
+    Store(tmp_path / "SourceScout" / "data" / "scout.db").upsert(
+        RawItem(c["source_id"], c["source"]["url"], "t", None, "the page changed", ()), "2026-10-01T00:00:00+00:00", 20000)
+    pe = ctx()
+    client = FakeClient([])
+    run_extraction(pe, client)
+    assert client.calls == [] and pe.report.superseded == [c["candidate_id"]]
+    assert pe.state.is_processed(c["candidate_id"])  # recorded, so not retried forever
+
+
+def test_malformed_candidate_file_is_reported_and_run_continues(ctx, tmp_path):
+    c = candidate(1)
+    seed(tmp_path / "SourceScout", [c])
+    (tmp_path / "SourceScout" / "output" / "2026-09" / "cand-broken.yaml").write_text("source_id: x\nitem_id: [unclosed\n")
+    pe = ctx()
+    run_extraction(pe, FakeClient([message(pe_output())]))
+    assert pe.report.new == 1 and any("cand-broken.yaml" in f for f in pe.report.failures)

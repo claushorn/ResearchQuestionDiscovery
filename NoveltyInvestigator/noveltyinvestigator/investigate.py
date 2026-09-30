@@ -65,6 +65,11 @@ def investigate_one(ctx: NIContext, problem_id: str) -> dict:
     for work in fields["closest_work"]:
         work["verification"] = verify_work(ctx.fetcher, work["url"], work["quote"])
     works = fields["closest_work"]
+    for check in fields["checks"].values():  # model-supplied numbers into closest_work (1-based)
+        invalid = [n for n in check["evidence"] if not 1 <= n <= len(works)]
+        if invalid:
+            check["evidence"] = [n for n in check["evidence"] if 1 <= n <= len(works)]
+            check["invalid_evidence"] = invalid
     searches = [c for c in res.tool_calls if c.name == "WebSearch"]
     u = res.usage
     record = {

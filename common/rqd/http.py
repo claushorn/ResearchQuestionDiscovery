@@ -6,6 +6,7 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 from pypdf import PdfReader
+from pypdf.errors import PyPdfError
 from selectolax.parser import HTMLParser
 
 from rqd.config import HttpCfg
@@ -34,7 +35,10 @@ def html_to_text(html: str, base_url: str = "") -> tuple[str, list[str]]:
 
 def pdf_to_text(data: bytes) -> str:
     """Text of all pages of a PDF (for verifying quotes from papers served as PDF)."""
-    return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+    try:
+        return "\n".join(page.extract_text() or "" for page in PdfReader(io.BytesIO(data)).pages)
+    except (PyPdfError, ValueError) as e:
+        raise SourceFetchError(f"unparsable PDF: {e}") from e
 
 
 class Fetcher:
@@ -56,6 +60,9 @@ class Fetcher:
         return self._request("POST", url, json=payload)
 
     def _request(self, method: str, url: str, **kw) -> httpx.Response:
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.netloc:  # URLs may come from a model
+            raise SourceFetchError(f"not an http(s) URL: {url!r}")
         self._check_robots(url)
         self._throttle(urlsplit(url).netloc)
         try:

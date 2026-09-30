@@ -24,12 +24,15 @@ def new_record(problem_id: str, candidate: dict, out: PEOutput, evidence_verifie
             "extracted_with": extracted_with}
 
 
-def merge_into(record: dict, candidate: dict, out: PEOutput, extracted_with: dict) -> dict:
+def merge_into(record: dict, candidate: dict, out: PEOutput, evidence_verified: bool | None,
+               extracted_with: dict) -> dict:
     """Pool the candidate into an existing problem. The record's text is kept; this candidate's extraction is
     preserved in the merge log so a later stage can re-synthesise."""
+    extracted = out.extracted()
+    extracted["unsolvedness"]["evidence_verified"] = evidence_verified
     record = {**record, "revision": record["revision"] + 1,
               "sources": [*record["sources"], source_entry(candidate)],
               "merge_log": [*record["merge_log"], {"candidate_id": candidate["candidate_id"], "decision": "merged",
-                                                    "reason": out.merge_reason, "extracted": out.extracted(),
+                                                    "reason": out.merge_reason, "extracted": extracted,
                                                     "at": extracted_with["at"]}]}
     return record

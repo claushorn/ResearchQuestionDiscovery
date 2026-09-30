@@ -14,6 +14,7 @@ from sourcescout.config import ExtractionCfg
 from rqd.claude_code import ClaudeCodeClient, parse_structured, raise_if_not_transient
 from rqd.errors import ExtractionConfigError, ItemExtractionError
 from rqd.quotes import quote_in_text
+from rqd.records import YamlStore
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.schema import EXTRACTION_SCHEMA, ExtractionResult, length_violations
@@ -58,9 +59,6 @@ def build_params(cfg: ExtractionCfg, item: StoredItem, source: Source, category:
     }
 
 
-
-
-
 @dataclass
 class ExtractContext:
     cfg: ExtractionCfg
@@ -69,9 +67,6 @@ class ExtractContext:
     report: RunReport
     output_dir: Path
     run_id: str
-
-
-
 
 
 def _fail(ctx: ExtractContext, item: StoredItem, error: str) -> None:
@@ -133,10 +128,7 @@ def handle_message(ctx: ExtractContext, item: StoredItem, message) -> None:
             "length_violations": violations,
             "extracted_with": {"model": ctx.cfg.model, "run_id": ctx.run_id, "output_tokens": share, "at": iso(now)},
         }
-        out_dir = ctx.output_dir / now.strftime("%Y-%m")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / f"{record['candidate_id']}.yaml").write_text(
-            yaml.safe_dump(record, sort_keys=False, allow_unicode=True), encoding="utf-8")
+        YamlStore(ctx.output_dir / now.strftime("%Y-%m")).save(record, record["candidate_id"])
     stat.candidates += len(result.candidates)
     if result.candidates:
         source.yield_.candidates += len(result.candidates)

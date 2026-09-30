@@ -7,7 +7,7 @@ from problemextractor.config import DEFAULT_ROOT, PEPaths, load_config
 from problemextractor.extract import PEContext, run_extraction
 from rqd.records import YamlStore
 from rqd.claude_code import make_client
-from rqd.cli import clean_errors, exclusive, load_repo_env, progress_to_stderr
+from rqd.cli import clean_errors, exclusive, hold_lock, load_repo_env, progress_to_stderr
 from rqd.errors import RqdError
 
 app = typer.Typer(no_args_is_help=True,
@@ -31,7 +31,8 @@ def run(ctx: typer.Context, limit: int = typer.Option(None, help="Max candidates
     cfg = load_config(paths.config)
     pe = PEContext.open(paths, cfg)
     try:
-        run_extraction(pe, make_client(cfg.extraction.backend), limit)
+        with hold_lock(pe.ss_root):  # SourceScout must not write its store/candidates while PE reads them
+            run_extraction(pe, make_client(cfg.extraction.backend), limit)
     finally:
         typer.echo(pe.report.render(cfg.extraction.token_budget))
         typer.echo(f"\nReport saved: {pe.report.save(paths.runs)}")
@@ -47,6 +48,8 @@ def _best_payment(record: dict) -> str:
 @clean_errors
 def list_problems(ctx: typer.Context, sort: str = typer.Option("sources", help="sources | tier")):
     """One line per problem: id, number of sources, best tier, payment signal, statement."""
+    if sort not in ("sources", "tier"):
+        raise RqdError(f"unknown sort {sort!r}", fix="Use --sort sources or --sort tier")
     records = YamlStore(PEPaths(ctx.obj).problems).all()
     best_tier = {r["problem_id"]: min((s["tier"] for s in r["sources"]), key=_TIER.get) for r in records}
     key = (lambda r: (-len(r["sources"]), _TIER[best_tier[r["problem_id"]]])) if sort == "sources" else \

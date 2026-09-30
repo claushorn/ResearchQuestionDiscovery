@@ -50,3 +50,14 @@ def test_record_fields_in_user_format():
 def test_confidence_must_be_a_probability():
     with pytest.raises(ValidationError):
         NIOutput.model_validate(ni_output(confidence=1.4))
+
+
+@pytest.mark.parametrize("url", ["", "not a url", "ftp://paper.example/x"])
+def test_model_supplied_non_http_url_is_unfetchable(url):
+    assert verify_work(make_fetcher({}), url, "quote") == "unfetchable"
+
+
+def test_unparsable_pdf_is_unfetchable():
+    f = make_fetcher({"GET https://paper.example/x": httpx.Response(200, content=b"%PDF-1.4 broken",
+                                                                   headers={"content-type": "application/pdf"})})
+    assert verify_work(f, "https://paper.example/x", "quote") == "unfetchable"
