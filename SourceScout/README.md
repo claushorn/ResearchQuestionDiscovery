@@ -1,0 +1,34 @@
+# SourceScout
+
+Collects *newly exposed technical problems that somebody has a reason to pay to solve* from funded calls,
+challenge platforms, job boards, investor theses, engineering blogs and workshop calls. It extracts shallow
+candidate records only — no value estimation or triage (later stages).
+
+## Files
+- `sources.yaml` — category classes (tier, enabled). Enable a category to scan its sources.
+- `registry.yaml` — concrete sources (rewritten by the tool; comments are not preserved).
+- `config.yaml` — model, effort, token budget, lifecycle and HTTP settings.
+- `output/YYYY-MM/*.yaml` — one candidate per file (format: `scout_output_schema.yaml`).
+- `data/` — SQLite item store and run reports (not versioned).
+- `discovered_unmapped.yaml` — discovered URLs that fit no category; review by hand.
+
+## Usage
+```bash
+export ANTHROPIC_API_KEY=...            # or `ant auth login`
+uv run sourcescout run                  # scan -> extract (batch) -> discover -> report
+uv run sourcescout run --sync --limit 5 # small synchronous run
+uv run sourcescout scan --tier A --force
+uv run sourcescout sources list
+uv run sourcescout sources check <id>   # dry fetch of one source
+uv run sourcescout report               # latest run report
+```
+
+## Source kinds
+`rss` (params: `max_items`, `fetch_full`), `greenhouse`, `lever`, `ashby`, `grants_gov` (`keyword`, `rows`,
+`opp_statuses`), `html_list` (`link_selector`, `link_pattern`, `max_items`, `content_selector`),
+`page` (`content_selector`). Every kind accepts `title_include` / `title_exclude` regexes.
+
+## Lifecycle
+Discovered sources start as `candidate`; promoted on their first candidate, retired after
+`promote_within_scans` scans without one. Active sources are retired after `retire_zero_yield_active`
+scans without a candidate or `max_consecutive_failures` failed fetches. `sources promote|retire` overrides.
