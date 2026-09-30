@@ -11,7 +11,7 @@ from conftest import make_registry
 from sourcescout.adapters.base import RawItem
 from sourcescout.config import load_config
 from sourcescout.errors import ExtractionConfigError
-from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, productive_item_links,
+from sourcescout.extract import (ExtractContext, build_params, make_client, quote_in_text, recent_referenced_links,
                                  run_extraction)
 from sourcescout.report import RunReport
 from sourcescout.store import Store, item_id_for
@@ -131,16 +131,27 @@ def test_make_client_without_credentials(ctx, monkeypatch, tmp_path):
         make_client(ctx.cfg.model_copy(update={"backend": "api"}))
 
 
-def test_productive_item_links_come_from_the_store(ctx):
-    add_item(ctx, "https://g.example/1")
-    add_item(ctx, "https://g.example/2")
-    run_extraction(ctx, FakeClient([message({"candidates": [cand()]}), message({"candidates": []})]), batch=False)
-    got = productive_item_links(ctx.output_dir, ctx.store, NOW - timedelta(days=1))
-    productive = [i for i in (item_id_for("https://g.example/1"), item_id_for("https://g.example/2"))
-                  if list(ctx.output_dir.glob(f"*/cand-{i}-*.yaml"))]
-    assert got == [("https://org.example/call", productive[0])]
+def test_links_are_numbered_and_relevant_links_resolved_by_code(ctx):
+    add_item(ctx)
+    [item] = ctx.store.pending()
+    p = build_params(ctx.cfg, item, ctx.registry.get("g"), ctx.registry.categories["gov_solicitation"])
+    assert "[1] https://org.example/call" in p["messages"][0]["content"]
+    run_extraction(ctx, FakeClient([message({"candidates": [cand() | {"relevant_links": [1, 7]}]})]), batch=False)
+    [f] = ctx.output_dir.glob("*/*.yaml")
+    rec = yaml.safe_load(f.read_text())
+    assert rec["referenced_urls"] == ["https://org.example/call"] and rec["unresolved_link_refs"] == [7]
+    assert recent_referenced_links(ctx.output_dir, NOW - timedelta(days=1)) == [
+        ("https://org.example/call", item_id_for("https://g.example/1"))]
 
 
+def test_pending_items_are_extracted_in_tier_order(ctx):
+    from sourcescout.registry import Source
+    ctx.registry.add(Source(id="blog", name="b", category="tech_blog", kind="page", url="https://b.example"))
+    ctx.store.upsert(RawItem("blog", "https://b.example/1", "Blog post", None, TEXT, ()), "2026-09-29T00:00:00+00:00", 20000)
+    add_item(ctx)  # tier A, seen later than the tier C blog post
+    client = FakeClient([message({"candidates": []})])
+    run_extraction(ctx, client, batch=False, limit=1)
+    assert "Call 1" in client.calls[0]["messages"][0]["content"]
 def test_tokens_of_empty_items_are_reported_separately(ctx):
     add_item(ctx, "https://g.example/1")
     add_item(ctx, "https://g.example/2")

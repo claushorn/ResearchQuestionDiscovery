@@ -11,6 +11,7 @@ from sourcescout.errors import SourceFetchError
 from sourcescout.http import Fetcher
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
+from sourcescout.store import canonical_url
 
 _JOB_PATTERNS = [
     (re.compile(r"^https?://(?:job-)?boards\.greenhouse\.io/([A-Za-z0-9_-]+)"), "greenhouse",
@@ -48,6 +49,10 @@ def blog_like(url: str) -> bool:
         bool(re.search(r"/(blog|engineering)(/|$)", p.path))
 
 
+def _host(url: str) -> str:
+    return urlsplit(url).netloc.lower().removeprefix("www.")
+
+
 def _ignored(host: str, cfg: DiscoveryCfg) -> bool:
     return any(host == h or host.endswith("." + h) for h in cfg.ignore_hosts)
 
@@ -61,12 +66,13 @@ def discover(registry: Registry, http: Fetcher, cfg: DiscoveryCfg, refs: list[tu
             report.discovered.append(s.id)
 
     unmapped = (yaml.safe_load(unmapped_path.read_text(encoding="utf-8")) or []) if unmapped_path.exists() else []
-    known_unmapped = {u["url"] for u in unmapped}
-    known_hosts = {urlsplit(s.url).netloc.lower() for s in registry.sources}
+    known_unmapped = {canonical_url(u["url"]) for u in unmapped}
+    known_hosts = {_host(s.url) for s in registry.sources}
     fetches = 0
     for url, origin in refs:
-        host = urlsplit(url).netloc.lower()
-        if not host or _ignored(host, cfg) or host in known_hosts or job_board_source(url, origin) or url in known_unmapped:
+        host = _host(url)
+        if (not host or _ignored(host, cfg) or host in known_hosts or job_board_source(url, origin)
+                or canonical_url(url) in known_unmapped):
             continue
         if fetches >= cfg.max_fetches_per_run:
             report.discovery_errors.append(f"fetch cap {cfg.max_fetches_per_run} reached; remaining references skipped")
@@ -88,7 +94,7 @@ def discover(registry: Registry, http: Fetcher, cfg: DiscoveryCfg, refs: list[tu
                 report.discovered.append(sid)
         else:
             unmapped.append({"url": url, "feed": feed, "discovered_from": origin})
-            known_unmapped.add(url)
+            known_unmapped.add(canonical_url(url))
             report.unmapped.append(url)
     unmapped_path.write_text(yaml.safe_dump(unmapped, sort_keys=False), encoding="utf-8")
     registry.save()

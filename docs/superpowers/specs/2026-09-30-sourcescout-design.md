@@ -140,6 +140,7 @@ Table `items`: `item_id` (hash of canonical URL), `source_id`, `url`, `title`,
 `extract_status` (`pending` | `done` | `failed`), `extract_error`.
 
 - An item is **new** when its canonical URL is unseen → `pending`.
+- Pending items are extracted in source-tier order (A, then B, then C), oldest first within a tier.
 - An item is **changed** when its `content_hash` differs → `pending` again,
   and its candidates are marked `revision: n+1`.
 - Otherwise only `last_seen` updates.
@@ -233,8 +234,12 @@ extracted_with: {model, run_id, output_tokens}
 
 ### 3.7 Registry maintenance (`discover`)
 
-- Input: stored links of items that yielded candidates (job-board patterns
-  and feed autodiscovery; taken from the item store, not re-copied by the model) plus outbound links of newly seen items (job-board patterns
+- Input: each candidate's `referenced_urls` (job-board patterns and feed
+  autodiscovery). The model returns only the numbers of up to 5 relevant links
+  from the item's numbered link list; code resolves them to URLs, so the model
+  never copies URLs. Plus outbound links of newly seen items (job-board
+  patterns only). Unmapped URLs are deduplicated by canonical URL and by host
+  without `www.`. plus outbound links of newly seen items (job-board patterns
   only; no fetching).
 - Deterministic detection only: RSS/Atom autodiscovery
   (`<link rel="alternate">`), Greenhouse/Lever/Ashby URL patterns, and domains
