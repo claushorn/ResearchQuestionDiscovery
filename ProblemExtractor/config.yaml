@@ -3,6 +3,6 @@ extraction:
   model: claude-opus-5-5
   effort: low
   max_tokens: 4000                 # hard stop per request (api backend)
-  token_budget: 600                # output tokens per candidate; reported as a violation when exceeded
+  token_budget: 800                # output tokens per candidate: 6 fields <= 60 words + quote + JSON and call overhead
   shortlist_size: 5                # most similar existing problems offered for merging
 sourcescout_root: ../SourceScout   # candidates (output/) and item texts (data/scout.db) come from here
