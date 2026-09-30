@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import shutil
+
 import anthropic
 import yaml
 from anthropic.types.message_create_params import MessageCreateParamsNonStreaming
@@ -13,7 +15,8 @@ from pydantic import ValidationError
 
 from sourcescout.categories import Category
 from sourcescout.config import ExtractionCfg
-from sourcescout.errors import ExtractionConfigError
+from sourcescout.claude_code import ClaudeCodeClient
+from sourcescout.errors import ExtractionConfigError, ItemExtractionError
 from sourcescout.registry import Registry, Source
 from sourcescout.report import RunReport
 from sourcescout.schema import EXTRACTION_SCHEMA, ExtractionResult, length_violations
@@ -78,7 +81,12 @@ class ExtractContext:
     run_id: str
 
 
-def make_client() -> anthropic.Anthropic:
+def make_client(cfg: ExtractionCfg):
+    if cfg.backend == "claude_code":
+        if shutil.which("claude") is None:
+            raise ExtractionConfigError("backend claude_code needs the `claude` CLI on PATH",
+                                        fix="Install Claude Code, or set extraction.backend: api in config.yaml")
+        return ClaudeCodeClient()
     client = anthropic.Anthropic()
     if client.api_key is None and client.auth_token is None and client.credentials is None:
         raise ExtractionConfigError("No Anthropic credentials found",
@@ -186,10 +194,16 @@ def _run_sync(ctx: ExtractContext, client, limit: int | None) -> None:
             _raise_if_not_transient(e)
             _fail(ctx, item, f"api: {e}")
             continue
+        except ItemExtractionError as e:
+            _fail(ctx, item, str(e))
+            continue
         handle_message(ctx, item, message)
 
 
 def run_extraction(ctx: ExtractContext, client, *, batch: bool, limit: int | None = None, sleep=time.sleep) -> None:
+    if batch and isinstance(client, ClaudeCodeClient):
+        raise ExtractionConfigError("batch extraction needs extraction.backend: api",
+                                    fix="Use --sync, or switch the backend in config.yaml")
     try:
         if batch:
             _run_batch(ctx, client, limit, sleep)

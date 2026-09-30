@@ -18,5 +18,9 @@ class ExtractionConfigError(ScoutError):
     pass
 
 
+class ItemExtractionError(Exception):
+    """External failure extracting one item; the item is marked failed and the run continues."""
+
+
 class SourceFetchError(Exception):
     """External failure while fetching one source; recorded and reported, the run continues."""

@@ -14,9 +14,10 @@ candidate records only — no value estimation or triage (later stages).
 
 ## Usage
 ```bash
-# ANTHROPIC_API_KEY is read from ResearchQuestionDiscovery/.env (git-ignored) or the environment
-uv run sourcescout run                  # scan -> extract (batch) -> discover -> report
-uv run sourcescout run --sync --limit 5 # small synchronous run
+# extraction.backend in config.yaml: claude_code (default; `claude -p` on your Claude subscription, sync)
+# or api (ANTHROPIC_API_KEY from ResearchQuestionDiscovery/.env or the environment; batches, pay per token)
+uv run sourcescout run                  # scan -> extract -> discover -> report
+uv run sourcescout run --limit 5       # small run (sync on claude_code, batch on api)
 uv run sourcescout scan --tier A --force
 uv run sourcescout sources list
 uv run sourcescout sources check <id>   # dry fetch of one source

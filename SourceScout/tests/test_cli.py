@@ -51,7 +51,7 @@ def test_run_saves_report_even_when_extraction_aborts(paths, monkeypatch):
     from sourcescout import cli
     from sourcescout.errors import ExtractionConfigError
 
-    def no_client():
+    def no_client(cfg):
         raise ExtractionConfigError("Your credit balance is too low", fix="Add credits")
     monkeypatch.setattr(cli, "make_client", no_client)
     res = runner.invoke(app, ["--root", str(paths.root), "run", "--sync"])

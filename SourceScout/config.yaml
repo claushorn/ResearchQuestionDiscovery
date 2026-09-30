@@ -1,4 +1,5 @@
 extraction:
+  backend: claude_code             # api: ANTHROPIC_API_KEY (pay per token, batches) | claude_code: `claude -p` on your Claude subscription (sync only)
   model: claude-opus-5-5
   effort: low
   max_tokens: 4000                 # hard stop per request

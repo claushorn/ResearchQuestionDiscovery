@@ -13,6 +13,7 @@ class Strict(BaseModel):
 
 
 class ExtractionCfg(Strict):
+    backend: Literal["api", "claude_code"]
     model: str
     effort: Literal["low", "medium", "high", "xhigh", "max"]
     max_tokens: int

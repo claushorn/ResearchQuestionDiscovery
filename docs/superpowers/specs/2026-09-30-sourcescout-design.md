@@ -150,6 +150,11 @@ The store holds item state only; candidate records live only in YAML (§3.6).
 
 - Claude API, Python `anthropic` SDK, `client.messages.parse` with a Pydantic
   model (structured outputs) mirroring `scout_output_schema.yaml`.
+- Backend (`extraction.backend`): `api` (Anthropic API key, pay per token,
+  Message Batches) or `claude_code` (`claude -p --safe-mode` on the user's
+  Claude subscription; sync only; API-key variables are stripped from the
+  subprocess so billing cannot silently switch). Both return the same
+  message shape into one response-handling path.
 - Model and effort are configured in `SourceScout/config.yaml`; default
   `claude-opus-5-5`, effort `low`. The model choice is the user's; no silent
   cheaper-model cascade.

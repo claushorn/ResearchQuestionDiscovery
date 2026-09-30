@@ -124,12 +124,12 @@ def test_auth_error_is_config_error(ctx):
         run_extraction(ctx, FakeClient([err]), batch=False)
 
 
-def test_make_client_without_credentials(monkeypatch, tmp_path):
+def test_make_client_without_credentials(ctx, monkeypatch, tmp_path):
     for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_PROFILE"):
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
     with pytest.raises(ExtractionConfigError):
-        make_client()
+        make_client(ctx.cfg.model_copy(update={"backend": "api"}))
 
 
 def test_recent_references(ctx):

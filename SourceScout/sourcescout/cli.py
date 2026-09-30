@@ -75,9 +75,11 @@ def _scan(env: Env, report: RunReport, now: datetime, **filters) -> None:
              job_title_include=env.config.scan.job_title_include, **filters)
 
 
-def _extract(env: Env, report: RunReport, batch: bool, limit: int | None) -> None:
+def _extract(env: Env, report: RunReport, batch: bool | None, limit: int | None) -> None:
     ctx = ExtractContext(env.config.extraction, env.registry, env.store, report, env.paths.output, report.run_id)
-    run_extraction(ctx, make_client(), batch=batch, limit=limit)
+    if batch is None:  # default follows the backend: batches only exist on the API
+        batch = env.config.extraction.backend == "api"
+    run_extraction(ctx, make_client(env.config.extraction), batch=batch, limit=limit)
 
 
 def _discover(env: Env, report: RunReport, since: datetime) -> None:
@@ -99,7 +101,7 @@ def scan(ctx: typer.Context, source: str = typer.Option(None, help="Scan only th
 
 @app.command()
 @clean_errors
-def extract(ctx: typer.Context, batch: bool = typer.Option(True, "--batch/--sync"),
+def extract(ctx: typer.Context, batch: bool = typer.Option(None, "--batch/--sync", help="Default: batch for backend api, sync for claude_code"),
             limit: int = typer.Option(None, help="Max items to extract"),
             retry_failed: bool = typer.Option(False, "--retry-failed", help="Return failed items to pending first")):
     """Extract candidates from pending items (Batches API by default)."""
@@ -125,7 +127,7 @@ def discover(ctx: typer.Context, days: float = typer.Option(1.0, help="Look back
 
 @app.command()
 @clean_errors
-def run(ctx: typer.Context, batch: bool = typer.Option(True, "--batch/--sync"),
+def run(ctx: typer.Context, batch: bool = typer.Option(None, "--batch/--sync", help="Default: batch for backend api, sync for claude_code"),
         limit: int = typer.Option(None, help="Max items to extract")):
     """scan -> extract -> discover -> lifecycle -> report."""
     env, now = _env(ctx.obj), utcnow()
