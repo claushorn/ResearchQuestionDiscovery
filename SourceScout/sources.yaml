@@ -1,10 +1,51 @@
-papers
-arxiv
-conference papers
-conference workshops
-benchmark leaderboards
-GitHub repositories/issues
-technical blogs
-AI lab publications
-startup technical blogs
-research competitions
+# High-level source category classes. SourceScout scans only registry sources
+# (registry.yaml) whose category is enabled here. No URLs live in this file.
+categories:
+  - id: gov_solicitation
+    tier: A
+    description: Government funding calls stating a problem with a budget (SBIR/STTR, grants.gov, ARPA-H, ARIA, EU calls)
+    enabled: true
+  - id: challenge_platform
+    tier: A
+    description: Prize competitions and research challenges sponsored by organisations (Kaggle, DrivenData, AIcrowd, HeroX, Zindi, protein-design competitions)
+    enabled: true
+  - id: corporate_open_innovation
+    tier: A
+    description: Corporate open-innovation and tech-scouting calls (NineSigma, yet2, company challenge portals)
+    enabled: false
+  - id: job_board
+    tier: B
+    description: Public job boards; research/engineering postings name problems a team is paid to solve
+    enabled: true
+  - id: investor_thesis
+    tier: B
+    description: Investor requests-for-startups and thesis posts naming problem areas they will fund
+    enabled: true
+  - id: sec_filings
+    tier: B
+    description: 10-K risk factors and earnings-call transcripts disclosing costly operational problems
+    enabled: false
+  - id: tech_blog
+    tier: C
+    description: Technical blogs of companies, startups and AI labs (postmortems, lessons learned, open challenges)
+    enabled: true
+  - id: conference_workshop
+    tier: C
+    description: Applied-ML workshop calls for papers and industry-track pages listing open problems
+    enabled: true
+  - id: github_issues
+    tier: C
+    description: Long-open, high-reaction issues in company-owned repositories
+    enabled: false
+  - id: academic_papers
+    tier: D
+    description: Papers (arXiv, conference papers) mined for limitations / future-work statements
+    enabled: false
+  - id: benchmark_leaderboard
+    tier: D
+    description: Benchmarks far from saturation, indicating unsolved tasks
+    enabled: false
+  - id: discussion
+    tier: E
+    description: Hacker News, practitioner forums and newsletters (mainly for discovering new sources)
+    enabled: false
