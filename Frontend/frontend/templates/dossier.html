@@ -23,7 +23,7 @@
   <div style="margin-bottom: 0.8rem">
     <a href="{{ c.source.url }}" target="_blank" rel="noopener"><strong>{{ c.source.title }}</strong></a>
     <span class="muted small">{{ c.source_id }}, tier {{ c.source.tier }}, {{ c.candidate_id }}</span><br>
-    Payment: {{ c.payment_signal.stated or c.payment_signal.type }}{% if c.payment_signal.deadline %}, deadline {{ c.payment_signal.deadline }}{% endif %}
+    Payment: {{ c.payment }}{% if c.payment_signal.deadline %}, deadline {{ c.payment_signal.deadline }}{% endif %}
     {% if c.candidate %}
       <blockquote>{{ c.candidate.candidate_problem.statement }}</blockquote>
       {% if c.candidate.explicit_unsolved_signal and c.candidate.explicit_unsolved_signal.evidence %}<span class="small muted">Unsolved signal:</span> <span class="small">“{{ c.candidate.explicit_unsolved_signal.evidence }}”</span>{% endif %}

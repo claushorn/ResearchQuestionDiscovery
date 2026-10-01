@@ -18,7 +18,7 @@ from personalfit.profile import Profile, load_profile
 from personalfit.run import is_stale
 from problemextractor.config import PEPaths
 from problemextractor.extract import read_candidates
-from problemextractor.records import SORT_KEYS, best_payment, best_tier, due_passed
+from problemextractor.records import SORT_KEYS, best_payment, best_tier, due_passed, payment_label
 from problemextractor.state import PEState
 from rqd.errors import RqdError
 from rqd.records import read_yaml
@@ -189,7 +189,7 @@ def _candidate_row(c: dict, processed: dict[str, tuple[str, str]]) -> dict:
     problem_id, decision = processed.get(c["candidate_id"], (None, None))
     return {"candidate_id": c["candidate_id"], "source_id": c["source_id"], "category": c["source"].get("category"),
             "tier": c["source"]["tier"], "title": c["source"]["title"], "url": c["source"]["url"],
-            "statement": c["candidate_problem"]["statement"], "payment": ps.get("stated") or ps["type"],
+            "statement": c["candidate_problem"]["statement"], "payment": payment_label(ps),
             "deadline": ps.get("deadline"), "due_passed": deadline_summary([ps.get("deadline")], today())[1],
             "problem_id": problem_id or None, "decision": decision, "at": c["extracted_with"]["at"]}
 
@@ -325,7 +325,8 @@ def dossier(roots: dict[str, Path], problem_id: str) -> dict:
     for src in record["sources"]:
         c = _candidate_file(roots["sourcescout"], src["candidate_id"], s.errors)
         cands.append({"candidate_id": src["candidate_id"], "source": c["source"] if c else src,
-                      "candidate": c, "payment_signal": src["payment_signal"], "source_id": src["source_id"]})
+                      "candidate": c, "payment_signal": src["payment_signal"], "payment": payment_label(src["payment_signal"]),
+                      "source_id": src["source_id"]})
     opp_record = s.opps_by_problem.get(problem_id, (None, None))[0]
     return {"problem_id": problem_id, "problem": record, "candidates": cands,
             "row": _problem_row(problem_id, s),

@@ -28,7 +28,7 @@ def test_candidates_link_to_their_problem_and_filter(env):
     assert (by_id[c0]["problem_id"], by_id[c0]["decision"]) == ("prob-a", "new")
     assert by_id[c1]["decision"] == "merged" and by_id[c1]["category"] == "tech_blog" and by_id[c1]["tier"] == "C"
     assert by_id[c3]["problem_id"] is None and by_id[c3]["due_passed"] is True and by_id[c0]["due_passed"] is False
-    assert by_id[c0]["payment"] == "$100k" and by_id[c0]["statement"] == "Synthetic problem statement 0."
+    assert by_id[c0]["payment"] == "grant: $100k" and by_id[c0]["statement"] == "Synthetic problem statement 0."
     assert [r["candidate_id"] for r in views.candidates(env["roots"], {"processed": "no"}, 1, 50).rows] == [c3]
     assert [r["candidate_id"] for r in views.candidates(env["roots"], {"category": "tech_blog"}, 1, 50).rows] == [c1]
     assert [r["candidate_id"] for r in views.candidates(env["roots"], {"q": "statement 2"}, 1, 50).rows] == [c2]

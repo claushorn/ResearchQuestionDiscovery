@@ -126,3 +126,9 @@ def test_long_texts_are_clamped_in_tables_with_the_full_text_on_hover(env):
     css = get(env, "/static/app.css")
     assert ".clamp" in css and "-webkit-line-clamp" in css
     assert "Precise statement of prob-a." in get(env, "/problems/prob-a")  # the dossier shows it in full
+
+
+def test_payment_shows_its_type(env):
+    """A bare `stated` hid the type: a company name (company_investment) looked like a payment."""
+    assert "grant: $100k" in get(env, "/candidates") and "grant: $100k" in get(env, "/problems")
+    assert "Payment: grant: $100k" in get(env, "/problems/prob-a")

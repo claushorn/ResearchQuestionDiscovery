@@ -11,10 +11,22 @@ def best_tier(record: dict) -> str:
     return min((s["tier"] for s in record["sources"]), key=TIER_RANK.get)
 
 
+PAYMENT_TYPE_LABELS = {"company_investment": "company", "investor_thesis": "investor thesis"}
+
+
+def payment_label(signal: dict) -> str:
+    """`type: stated` (e.g. "grant: $1.5M", "company: tisix.io"), the type alone when nothing is stated, "-" for none."""
+    if signal["type"] == "none_stated":
+        return "-"
+    label = PAYMENT_TYPE_LABELS.get(signal["type"], signal["type"])
+    return f"{label}: {signal['stated']}" if signal.get("stated") else label
+
+
 def best_payment(record: dict) -> str:
+    """The first source's payment signal that states something, else the first typed one, else "-"."""
     signals = [s["payment_signal"] for s in record["sources"] if s["payment_signal"]["type"] != "none_stated"]
     stated = [p for p in signals if p.get("stated")]
-    return (stated[0]["stated"] if stated else signals[0]["type"]) if signals else "-"
+    return payment_label(stated[0] if stated else signals[0]) if signals else "-"
 
 
 def due_passed(record: dict, on: date) -> bool:
