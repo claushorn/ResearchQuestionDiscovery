@@ -4,6 +4,11 @@ from pathlib import Path
 import yaml
 
 
+def read_yaml(path: Path) -> object:
+    """One YAML file, parsed safely with libyaml (~10x faster than the pure-Python loader: pages read 500+ records)."""
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.CSafeLoader)
+
+
 class YamlStore:
     """One YAML file per record, named <id>.yaml, written atomically (problems, investigations)."""
 
@@ -17,7 +22,7 @@ class YamlStore:
         return self.path(record_id).exists()
 
     def load(self, record_id: str) -> dict:
-        return yaml.safe_load(self.path(record_id).read_text(encoding="utf-8"))
+        return read_yaml(self.path(record_id))
 
     def save(self, record: dict, record_id: str) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
@@ -27,4 +32,4 @@ class YamlStore:
         os.replace(tmp, path)
 
     def all(self) -> list[dict]:
-        return [yaml.safe_load(p.read_text(encoding="utf-8")) for p in sorted(self.dir.glob("*.yaml"))]
+        return [read_yaml(p) for p in sorted(self.dir.glob("*.yaml"))]

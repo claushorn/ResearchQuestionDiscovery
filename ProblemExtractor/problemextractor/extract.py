@@ -10,7 +10,7 @@ import yaml
 
 from problemextractor.config import PEConfig, PEPaths
 from problemextractor.records import merge_into, new_record, problem_id_for
-from rqd.records import YamlStore
+from rqd.records import YamlStore, read_yaml
 from problemextractor.schema import PE_SCHEMA, PEOutput
 from problemextractor.similarity import shortlist
 from problemextractor.state import PEState
@@ -115,6 +115,20 @@ def _doc(record: dict) -> str:
     return f"{record['problem']['precise_statement']} {record['desired_capability']}"
 
 
+def read_candidates(ss_root: Path) -> tuple[list[dict], list[tuple[Path, Exception]]]:
+    """Every SourceScout candidate file (output/*/*.yaml), and the unreadable ones with their error."""
+    out, unreadable = [], []
+    for path in sorted((ss_root / "output").glob("*/*.yaml")):
+        try:
+            c = read_yaml(path)
+            c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"]  # the keys runs sort and link by
+        except (yaml.YAMLError, KeyError, TypeError) as e:
+            unreadable.append((path, e))
+            continue
+        out.append(c)
+    return out, unreadable
+
+
 def new_candidates(ctx: PEContext, categories: list[str] | None = None,
                    candidate_ids: list[str] | None = None) -> list[dict]:
     """Unprocessed SourceScout candidates (of the given source categories, if any), tier A first, oldest first
@@ -127,16 +141,12 @@ def new_candidates(ctx: PEContext, categories: list[str] | None = None,
         if unknown:
             raise RqdError(f"unknown source category {', '.join(unknown)}", fix=f"Use one of: {', '.join(known)}")
     out, by_id = [], {}
-    for path in sorted((ctx.ss_root / "output").glob("*/*.yaml")):
-        try:
-            c = yaml.safe_load(path.read_text(encoding="utf-8"))
-            key = (c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"])
-        except (yaml.YAMLError, KeyError, TypeError) as e:
-            ctx.report.failures.append(f"{path.name}: unreadable candidate file ({e!r})")
-            continue
+    candidates, unreadable = read_candidates(ctx.ss_root)
+    ctx.report.failures += [f"{path.name}: unreadable candidate file ({e!r})" for path, e in unreadable]
+    for c in candidates:
         by_id[c["candidate_id"]] = c
         if not ctx.state.is_processed(c["candidate_id"]) and (not categories or c["source"].get("category") in categories):
-            out.append((key, c))
+            out.append(((c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"]), c))
     if candidate_ids:
         unknown = [cid for cid in candidate_ids if cid not in by_id]
         if unknown:

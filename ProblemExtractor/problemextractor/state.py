@@ -20,3 +20,7 @@ class PEState:
     def record(self, candidate_id: str, problem_id: str, decision: str, at: str) -> None:
         with self._db:
             self._db.execute("INSERT INTO processed VALUES (?,?,?,?)", (candidate_id, problem_id, decision, at))
+
+    def all(self) -> dict[str, tuple[str, str]]:
+        """{candidate_id: (problem_id, decision)} for every processed candidate."""
+        return {c: (p, d) for c, p, d in self._db.execute("SELECT candidate_id, problem_id, decision FROM processed")}
