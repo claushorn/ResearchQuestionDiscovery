@@ -6,7 +6,10 @@ candidate records only — no value estimation or triage (later stages).
 
 ## Files
 - `sources.yaml` — category classes (tier, enabled). Enable a category to scan its sources.
-- `registry.yaml` — concrete sources (rewritten by the tool; comments are not preserved).
+- `registry.yaml` — curated sources (config only; never written by the tools, so new sources arrive by PR).
+- `data/registry_state.yaml` — runtime state per source (status, health, yield, last scan) and the sources
+  `discover` added (git-ignored). A pre-split `registry.yaml` with inline state is migrated on the next save;
+  then restore the tracked file with `git checkout -- SourceScout/registry.yaml`.
 - `config.yaml` — model, effort, token budget, lifecycle and HTTP settings.
 - `output/YYYY-MM/*.yaml` — one candidate per file (format: `scout_output_schema.yaml`).
 - `data/` — SQLite item store and run reports (not versioned).
@@ -38,7 +41,19 @@ Only one mutating command runs per SourceScout directory at a time (`data/run.lo
 "Completed competitions", `finished_listing: true` — a listing of finished entries only). Finished entries are
 stored with status `finished` (kept for later use, e.g. finding winners' solutions) but never extracted, and
 ProblemExtractor never turns them into problems.
-`page` (`content_selector`). Every kind accepts `title_include` / `title_exclude` regexes; job boards without
+`page` (`content_selector`).
+Industry talks, one item per talk: `json_sessions` (`items_path` — dotted path, `*` steps into every list element /
+mapping value; `title_field`, `text_fields`, optional `embedded` — CSS selector of a `<script>` holding the JSON, e.g.
+`script#__NEXT_DATA__`; `url_field` (relative paths resolve against the listing), `id_field`, `date_field`,
+`max_items`) for pretalx schedule exports, sessions.json feeds and Next.js agendas; `html_sections`
+(`section_selector` wrapping one talk, `title_selector`, `max_items`) for one static page listing many talks;
+`doi_list` (`max_items`) for accepted-paper pages listing DOIs (e.g. KDD): one item per paper with title, abstract
+and author institutions from OpenAlex (publisher pages such as ACM block scripts). Talks with a detail page per talk
+(M3, T3chFest) use `html_list`, whose `link_selector` may use descendant selectors.
+Talks are category `industry_talk`; their payment signal is `company_investment` (stated = the company), and only
+limitations / open challenges the talk itself states make a candidate. Extract them with
+`uv run problemextractor run --category industry_talk`.
+Every kind accepts `title_include` / `title_exclude` regexes; job boards without
 `title_include` use `scan.job_title_include` from `config.yaml`.
 
 ## Lifecycle

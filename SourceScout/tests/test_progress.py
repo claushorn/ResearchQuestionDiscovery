@@ -71,4 +71,4 @@ def test_registry_saved_after_each_source_so_interrupts_keep_progress(paths, mon
     with pytest.raises(KeyboardInterrupt):
         scan(reg, Store(paths.db), make_fetcher({"GET https://a.example/p": "<html><body>x</body></html>"}),
              RunReport.new(NOW), now=NOW, max_item_chars=1000, force=True)
-    assert "id: first" in paths.registry.read_text() and "last_scanned: '2026-09-30T12:00:00+00:00'" in paths.registry.read_text()
+    assert "first:" in paths.registry_state.read_text() and "last_scanned: '2026-09-30T12:00:00+00:00'" in paths.registry_state.read_text()

@@ -28,10 +28,10 @@ def test_promote_and_retire(paths):
     write_registry(paths, [{"id": "a", "name": "A", "category": "tech_blog", "kind": "rss", "url": "https://a.example/feed",
                             "status": "candidate", "health": {"consecutive_failures": 4}}])
     assert runner.invoke(app, ["--root", str(paths.root), "sources", "promote", "a"]).exit_code == 0
-    src = yaml.safe_load(paths.registry.read_text())["sources"][0]
+    src = yaml.safe_load(paths.registry_state.read_text())["state"]["a"]
     assert src["status"] == "active" and src["health"]["consecutive_failures"] == 0
     assert runner.invoke(app, ["--root", str(paths.root), "sources", "retire", "a"]).exit_code == 0
-    assert yaml.safe_load(paths.registry.read_text())["sources"][0]["status"] == "retired"
+    assert yaml.safe_load(paths.registry_state.read_text())["state"]["a"]["status"] == "retired"
 
 
 def test_report_without_runs(paths):

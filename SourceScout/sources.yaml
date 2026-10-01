@@ -25,6 +25,10 @@ categories:
     tier: B
     description: 10-K risk factors and earnings-call transcripts disclosing costly operational problems
     enabled: false
+  - id: industry_talk
+    tier: B
+    description: Conference industry talks and applied papers by company staff (what a named company is working on, with the limitations the talk states)
+    enabled: true
   - id: tech_blog
     tier: C
     description: Technical blogs of companies, startups and AI labs (postmortems, lessons learned, open challenges)
