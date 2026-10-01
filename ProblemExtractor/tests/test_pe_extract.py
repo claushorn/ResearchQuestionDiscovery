@@ -195,3 +195,34 @@ def test_candidate_of_a_finished_challenge_does_not_become_a_problem(ctx, tmp_pa
     run_extraction(pe, client)
     assert client.calls == [] and pe.report.finished == [c["candidate_id"]] and pe.report.new == 0
     assert pe.state.is_processed(c["candidate_id"])
+
+
+def test_candidate_ids_process_only_those_in_the_given_order(ctx, tmp_path):
+    cs = [candidate(0, tier="A"), candidate(1, tier="C", source_id="rss-x"), candidate(2, tier="A")]
+    seed(tmp_path / "SourceScout", cs)
+    client = FakeClient([message(pe_output()), message(pe_output(statement="Another problem entirely."))])
+    pe = ctx()
+    run_extraction(pe, client, candidate_ids=[cs[1]["candidate_id"], cs[0]["candidate_id"]])
+    assert [c["messages"][0]["content"].split("<title>")[1][:6] for c in client.calls] == ["Call 1", "Call 0"]
+    assert pe.state.is_processed(cs[1]["candidate_id"]) and not pe.state.is_processed(cs[2]["candidate_id"])
+
+
+def test_unknown_or_processed_candidate_id_is_a_clean_error_before_any_extraction(ctx, tmp_path):
+    from rqd.errors import RqdError
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c, candidate(1)])
+    client = FakeClient([])
+    with pytest.raises(RqdError, match="cand-nope") as e:
+        run_extraction(ctx(), client, candidate_ids=[candidate(1)["candidate_id"], "cand-nope"])
+    assert e.value.fix and client.calls == []
+    run_extraction(ctx(), FakeClient([message(pe_output())]), candidate_ids=[c["candidate_id"]])
+    with pytest.raises(RqdError, match="already processed"):
+        run_extraction(ctx(), client, candidate_ids=[c["candidate_id"]])
+
+
+def test_candidate_ids_and_categories_are_mutually_exclusive(ctx, tmp_path):
+    from rqd.errors import RqdError
+    c = candidate(0)
+    seed(tmp_path / "SourceScout", [c])
+    with pytest.raises(RqdError, match="--candidate"):
+        run_extraction(ctx(), FakeClient([]), categories=["tech_blog"], candidate_ids=[c["candidate_id"]])

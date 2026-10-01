@@ -115,15 +115,18 @@ def _doc(record: dict) -> str:
     return f"{record['problem']['precise_statement']} {record['desired_capability']}"
 
 
-def new_candidates(ctx: PEContext, categories: list[str] | None = None) -> list[dict]:
+def new_candidates(ctx: PEContext, categories: list[str] | None = None,
+                   candidate_ids: list[str] | None = None) -> list[dict]:
     """Unprocessed SourceScout candidates (of the given source categories, if any), tier A first, oldest first
-    within a tier."""
+    within a tier; or exactly the given candidate ids, in the given order (each must exist and be unprocessed)."""
+    if categories and candidate_ids:
+        raise RqdError("--category and --candidate cannot be combined", fix="Pass either --category or --candidate")
     if categories:
         known = [c["id"] for c in (load_yaml(ctx.ss_root / "sources.yaml", ConfigError) or {}).get("categories", [])]
         unknown = [c for c in categories if c not in known]
         if unknown:
             raise RqdError(f"unknown source category {', '.join(unknown)}", fix=f"Use one of: {', '.join(known)}")
-    out = []
+    out, by_id = [], {}
     for path in sorted((ctx.ss_root / "output").glob("*/*.yaml")):
         try:
             c = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -131,8 +134,18 @@ def new_candidates(ctx: PEContext, categories: list[str] | None = None) -> list[
         except (yaml.YAMLError, KeyError, TypeError) as e:
             ctx.report.failures.append(f"{path.name}: unreadable candidate file ({e!r})")
             continue
+        by_id[c["candidate_id"]] = c
         if not ctx.state.is_processed(c["candidate_id"]) and (not categories or c["source"].get("category") in categories):
             out.append((key, c))
+    if candidate_ids:
+        unknown = [cid for cid in candidate_ids if cid not in by_id]
+        if unknown:
+            raise RqdError(f"unknown candidate {', '.join(unknown)}",
+                           fix=f"Use candidate ids from {ctx.ss_root / 'output'} (cand-*.yaml)")
+        done = [cid for cid in candidate_ids if ctx.state.is_processed(cid)]
+        if done:
+            raise RqdError(f"candidate already processed: {', '.join(done)}", fix="Drop it from --candidate")
+        return [by_id[cid] for cid in candidate_ids]
     return [c for _, c in sorted(out, key=lambda kc: kc[0])]
 
 
@@ -202,8 +215,9 @@ def process(ctx: PEContext, client, candidate: dict) -> str:
     return "new"
 
 
-def run_extraction(ctx: PEContext, client, limit: int | None = None, categories: list[str] | None = None) -> None:
-    candidates = new_candidates(ctx, categories)
+def run_extraction(ctx: PEContext, client, limit: int | None = None, categories: list[str] | None = None,
+                   candidate_ids: list[str] | None = None) -> None:
+    candidates = new_candidates(ctx, categories, candidate_ids)
     candidates = candidates[:limit] if limit is not None else candidates
     log.info("processing %d new candidates (%d problems on file)", len(candidates), len(ctx.docs))
     for i, c in enumerate(candidates, 1):
