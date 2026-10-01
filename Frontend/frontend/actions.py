@@ -9,10 +9,12 @@ from challengeinvestigator.run import refusal, scout_store
 from economicvalue.assess import gate, investigations_store, problems_store
 from economicvalue.config import EVPaths, load_config as ev_config
 from noveltyinvestigator.config import NIPaths, load_config as ni_config
+from noveltyinvestigator.investigate import problems_store as ni_problems_store, refusal as ni_refusal
 from opportunitygenerator.config import OGPaths, load_config as og_config
 from opportunitygenerator.ids import opp_id_for
 from opportunitygenerator.run import OGStores, load_inputs
 from personalfit.config import PFPaths, load_config as pf_config
+from personalfit.run import problems_store as pf_problems_store, refusal as pf_refusal
 from problemextractor.config import PEPaths, load_config as pe_config
 from problemextractor.extract import check_candidate_ids, read_candidates
 from problemextractor.state import PEState
@@ -41,7 +43,8 @@ def _extract(root: Path) -> tuple[Check, Callable[[str], bool]]:
 
 
 def _novelty(root: Path) -> tuple[Check, Callable[[str], bool]]:
-    return lambda i, force: None, YamlStore(NIPaths(root).investigations).exists
+    problems = ni_problems_store(NIPaths(root), ni_config(NIPaths(root).config))
+    return lambda i, force: ni_refusal(problems, i), YamlStore(NIPaths(root).investigations).exists
 
 
 def _economic_value(root: Path) -> tuple[Check, Callable[[str], bool]]:
@@ -53,7 +56,8 @@ def _economic_value(root: Path) -> tuple[Check, Callable[[str], bool]]:
 
 
 def _fit(root: Path) -> tuple[Check, Callable[[str], bool]]:
-    return lambda i, force: None, YamlStore(PFPaths(root).fits).exists
+    problems = pf_problems_store(PFPaths(root), pf_config(PFPaths(root).config))
+    return lambda i, force: pf_refusal(problems, i), YamlStore(PFPaths(root).fits).exists
 
 
 def _generate(root: Path) -> tuple[Check, Callable[[str], bool]]:
@@ -105,9 +109,10 @@ class Action:
 
     def argv(self, bin_dir: Path, root: Path, ids: list[str], force: bool) -> list[str]:
         """The stage's own CLI command line for these ids."""
-        args = [x for i in ids for x in (self.id_flag, i)] if self.id_flag else list(ids)
-        return [str(bin_dir / self.script), "--root", str(root), self.command, *args,
-                *(["--force"] if force and self.force_option else [])]
+        # ids never become options: `--flag=<id>` binds the value, `--` ends the options before positional ids
+        args = [f"{self.id_flag}={i}" for i in ids] if self.id_flag else ["--", *ids]
+        return [str(bin_dir / self.script), "--root", str(root), self.command,
+                *(["--force"] if force and self.force_option else []), *args]
 
 
 ACTIONS = {a.key: a for a in [

@@ -159,7 +159,7 @@ from rqd.cli import hold_lock
 from rqd.records import YamlStore
 args = sys.argv[1:]
 root = Path(args[args.index("--root") + 1])
-rest = [a for a in args[args.index("--root") + 2:] if a != "--force"]
+rest = [a for a in args[args.index("--root") + 2:] if a not in ("--force", "--")]
 command, ids = rest[0], rest[1:]
 with hold_lock(root):
     if any(i.startswith("err") for i in ids):

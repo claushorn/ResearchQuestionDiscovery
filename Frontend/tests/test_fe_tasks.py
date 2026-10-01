@@ -23,6 +23,9 @@ def env(tmp_path):
     s["roots"] = load_config(s["root"] / "config.yaml").stage_roots(s["root"])
     s["bin"] = tmp_path / "bin"
     fake_cli(s["bin"])
+    problems = YamlStore(s["roots"]["problemextractor"] / "problems")
+    for pid in ("slow-1", "bad-1", "err-1"):  # the fake CLI's behaviour ids, as real problems
+        problems.save(problems.load("prob-c") | {"problem_id": pid}, pid)
     s["runner"] = TaskRunner(s["root"] / "data", s["roots"], bin_dir=s["bin"])
     return s
 
@@ -42,7 +45,7 @@ def test_start_runs_the_stage_cli_and_reports_per_item_results(env):
     tid = runner.start("fit", ["prob-a", "prob-c"], force=False)
     st = wait(runner, tid)
     assert st["status"] == "done" and st["exit_code"] == 0
-    assert st["argv"][1:] == ["--root", str(env["roots"]["personalfit"]), "assess", "prob-a", "prob-c"]
+    assert st["argv"][1:] == ["--root", str(env["roots"]["personalfit"]), "assess", "--", "prob-a", "prob-c"]
     assert st["argv"][0] == str(env["bin"] / "fit")
     assert [(i["id"], i["state"]) for i in st["items"]] == [("prob-a", "done"), ("prob-c", "done")]
     assert st["items"][0]["result"] == "advantage 7/10, 1 advantages, 0 warnings"
@@ -154,11 +157,11 @@ def test_start_runs_only_runnable_ids(env):
     fake_cli(env["bin"], "economicvalue", "ev", "assessments")
     runner = env["runner"]
     st = wait(runner, runner.start("economic_value", ["prob-b", "prob-c"], force=False))
-    assert st["argv"][3:] == ["assess", "prob-c"] and st["refused"][0]["id"] == "prob-b"
+    assert st["argv"][3:] == ["assess", "--", "prob-c"] and st["refused"][0]["id"] == "prob-b"
     with pytest.raises(RqdError, match="nothing to run"):
         runner.start("economic_value", ["prob-b"], force=False)
     st = wait(runner, runner.start("economic_value", ["prob-b"], force=True))
-    assert st["argv"][3:] == ["assess", "prob-b", "--force"]
+    assert st["argv"][3:] == ["assess", "--force", "--", "prob-b"]
 
 
 def test_routes_confirm_start_panel_and_agent_tasks_page(env, monkeypatch):
@@ -195,3 +198,36 @@ def test_panel_reloads_the_page_when_items_finished_since_the_last_poll(env, mon
     assert "HX-Refresh" not in client.get(f"/tasks/panel?tid={tid}&seen=1", headers=page).headers
     confirm_page = {"HX-Current-URL": "http://127.0.0.1:8765/confirm"}
     assert "HX-Refresh" not in client.get(f"/tasks/panel?tid={tid}&seen=0", headers=confirm_page).headers
+
+
+@pytest.mark.parametrize("action", ["fit", "novelty"])
+def test_unknown_or_option_like_ids_are_refused_by_the_stages_own_check(env, action):
+    from noveltyinvestigator.investigate import refusal as ni_refusal
+    from personalfit.run import refusal as pf_refusal
+    problems = YamlStore(env["roots"]["problemextractor"] / "problems")
+    c = confirm(env["roots"], action, ["--help", "prob-zzz", "prob-a"], force=False)
+    expected = pf_refusal if action == "fit" else ni_refusal
+    assert c["refused"] == [{"id": i, "message": str(expected(problems, i)), "fix": expected(problems, i).fix}
+                            for i in ("--help", "prob-zzz")]
+    assert c["runnable"] == ["prob-a"] and "no problem --help" in c["refused"][0]["message"]
+
+
+def test_ids_cannot_become_options_of_the_stage_cli(env):
+    import subprocess
+    import sys
+    from pathlib import Path
+    bin_dir = Path(sys.executable).parent
+    for key, root in (("fit", "personalfit"), ("novelty", "noveltyinvestigator"), ("economic_value", "economicvalue"),
+                      ("generate", "opportunitygenerator"), ("headroom", "challengeinvestigator"),
+                      ("investigate", "challengeinvestigator")):
+        argv = ACTIONS[key].argv(bin_dir, env["roots"][root], ["--help"], force=False)
+        assert argv[3:] == [ACTIONS[key].command, "--", "--help"], argv
+    argv = ACTIONS["extract"].argv(bin_dir, env["roots"]["problemextractor"], ["--help", "cand-x"], force=False)
+    assert argv[3:] == ["run", "--candidate=--help", "--candidate=cand-x"]
+    # the real CLI takes `--help` after `--` as a problem id and refuses it before any spend (no help text, exit 1)
+    argv = ACTIONS["fit"].argv(bin_dir, env["roots"]["personalfit"], ["--help"], force=False)
+    res = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+    assert res.returncode == 1 and "no problem --help" in res.stderr and "Usage" not in res.stdout
+    argv = ACTIONS["extract"].argv(bin_dir, env["roots"]["problemextractor"], ["--help"], force=False)
+    res = subprocess.run(argv, capture_output=True, text=True, timeout=60)
+    assert res.returncode == 1 and "unknown candidate --help" in res.stderr
