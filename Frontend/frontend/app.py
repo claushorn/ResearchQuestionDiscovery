@@ -1,0 +1,37 @@
+"""FastAPI app: server-rendered pages over the stages' stores. Deliberate failures (RqdError) render as a page with
+the message and fix; never a traceback page."""
+from pathlib import Path
+
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from frontend.config import load_config
+from rqd.errors import RqdError
+
+HERE = Path(__file__).resolve().parent
+NAV = [("/", "Overview"), ("/candidates", "Candidates"), ("/problems", "Problems"),
+       ("/opportunities", "Opportunities"), ("/challenges", "Challenges"), ("/tasks", "Agent Tasks")]
+
+
+def create_app(root: Path) -> FastAPI:
+    app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+    app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
+    templates = Jinja2Templates(directory=HERE / "templates")
+    templates.env.globals["nav"] = NAV
+
+    def roots() -> dict[str, Path]:
+        cfg = load_config(root / "config.yaml")
+        return cfg.stage_roots(root)
+
+    @app.exception_handler(RqdError)
+    async def rqd_error(request: Request, exc: RqdError):
+        return templates.TemplateResponse(request, "error.html", {"message": str(exc), "fix": exc.fix},
+                                          status_code=500)
+
+    @app.get("/", response_class=HTMLResponse)
+    def overview(request: Request):
+        return templates.TemplateResponse(request, "overview.html", {"roots": roots()})
+
+    return app

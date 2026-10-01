@@ -1,0 +1,11 @@
+# Frontend: local web app over the stages' stores (`uv run frontend`). Binds to 127.0.0.1 only.
+port: 8765
+page_size: 50          # table rows per page
+roots:                 # stage directories, relative to this directory
+  sourcescout: ../SourceScout
+  problemextractor: ../ProblemExtractor
+  noveltyinvestigator: ../NoveltyInvestigator
+  economicvalue: ../EconomicValueInvestigator
+  challengeinvestigator: ../ChallengeInvestigator
+  personalfit: ../PersonalFitInvestigator
+  opportunitygenerator: ../OpportunityGenerator

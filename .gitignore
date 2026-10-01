@@ -30,3 +30,4 @@ EconomicValueInvestigator/assessments/*
 !EconomicValueInvestigator/assessments/.gitkeep
 ChallengeInvestigator/challenges/*
 !ChallengeInvestigator/challenges/.gitkeep
+Frontend/data/
