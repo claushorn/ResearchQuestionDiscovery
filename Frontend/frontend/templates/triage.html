@@ -1,0 +1,10 @@
+{# triage control for one item; posts to /triage/<kind>/<id> and replaces itself (htmx, no page reload) #}
+{% set t = t or {"status": "none", "note": ""} %}
+<form class="triage" hx-post="/triage/{{ kind }}/{{ item_id }}" hx-swap="outerHTML" hx-trigger="submit, change from:find input">
+  <input type="hidden" name="current" value="{{ t.status }}">
+  <button type="submit" name="status" value="{{ 'none' if t.status == 'shortlist' else 'shortlist' }}"
+          class="{{ 'on ' if t.status == 'shortlist' }}shortlist" title="Shortlist (click again to clear)">Shortlist</button>
+  <button type="submit" name="status" value="{{ 'none' if t.status == 'reject' else 'reject' }}"
+          class="{{ 'on ' if t.status == 'reject' }}reject" title="Reject (click again to clear)">Reject</button>
+  <input type="text" name="note" value="{{ t.note }}" placeholder="note" aria-label="Note for {{ item_id }}">
+</form>

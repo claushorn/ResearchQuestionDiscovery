@@ -38,6 +38,21 @@ class Table:
     errors: list[Error] = field(default_factory=list)
 
 
+TRIAGE_NONE = {"status": "none", "note": ""}
+TRIAGE_FILTERS = ("shortlist", "reject", "not_rejected", "untriaged")
+
+
+def _triaged(rows: list[dict], key: str, triage: dict | None, wanted: str | None) -> list[dict]:
+    """Attach each row's triage (frontend-owned) and keep the rows the triage filter asks for."""
+    if wanted and wanted not in TRIAGE_FILTERS:
+        raise RqdError(f"unknown triage filter {wanted!r}", fix=f"Use one of: {', '.join(TRIAGE_FILTERS)}")
+    for r in rows:
+        r["triage"] = (triage or {}).get(r[key], TRIAGE_NONE)
+    keep = {"shortlist": lambda s: s == "shortlist", "reject": lambda s: s == "reject",
+            "not_rejected": lambda s: s != "reject", "untriaged": lambda s: s == "none"}.get(wanted, lambda s: True)
+    return [r for r in rows if keep(r["triage"]["status"])]
+
+
 def _page(rows: list[dict], page: int, page_size: int, errors: list[Error]) -> Table:
     pages = max(1, math.ceil(len(rows) / page_size))
     page = min(max(1, page), pages)
@@ -187,6 +202,7 @@ def candidates(roots: dict[str, Path], filters: dict, page: int, page_size: int,
             and (not f.get("tier") or r["tier"] == f["tier"])
             and (not f.get("processed") or (r["decision"] is not None) == (f["processed"] == "yes"))
             and (not f.get("due") or r["due_passed"] == (f["due"] == "passed"))]
+    rows = _triaged(rows, "candidate_id", triage, f.get("triage"))
     rows.sort(key=lambda r: (r["tier"], r["at"], r["candidate_id"]))  # ProblemExtractor's processing order
     return _page(rows, page, page_size, errors)
 
@@ -243,7 +259,8 @@ def problems(roots: dict[str, Path], filters: dict, sort: str, page: int, page_s
     rows = []
     for pid in s.problems:
         rows.append(_problem_row(pid, s))
-    rows = sorted((r for r in rows if _problem_filter(r, filters)), key=PROBLEM_SORTS[sort])
+    rows = _triaged([r for r in rows if _problem_filter(r, filters)], "problem_id", triage, filters.get("triage"))
+    rows.sort(key=PROBLEM_SORTS[sort])
     return _page(rows, page, page_size, s.errors)
 
 
@@ -290,6 +307,7 @@ def opportunities(roots: dict[str, Path], filters: dict, page: int, page_size: i
     rows = [r for r in rows if _search(f"{r['id']} {r['problem_id']} {r['title']}", f.get("q"))
             and (not f.get("recommendation") or r["recommendation"] == f["recommendation"])
             and (not f.get("stale") or bool(r["stale"]) == (f["stale"] == "yes"))]
+    rows = _triaged(rows, "id", triage, f.get("triage"))
     rows.sort(key=lambda r: r["id"])
     return _page(rows, page, page_size, s.errors)
 
@@ -330,6 +348,7 @@ def challenges(roots: dict[str, Path], filters: dict, page: int, page_size: int,
             and (not f.get("checked") or (r["verdict"] is not None) == (f["checked"] == "yes"))
             and (not f.get("verdict") or r["verdict"] == f["verdict"])
             and (not f.get("investigated") or r["investigated"] == (f["investigated"] == "yes"))]
+    rows = _triaged(rows, "item_id", triage, f.get("triage"))
     rows.sort(key=lambda r: (r["verdict"] is None, r["title"]))
     return _page(rows, page, page_size, errors)
 
