@@ -240,10 +240,20 @@ PROBLEM_SORTS = {"sources": lambda r: SORT_KEYS["sources"](r["_record"]),
                  "id": lambda r: r["problem_id"]}
 
 
+def _whole_number(filters: dict, key: str) -> int | None:
+    value = filters.get(key)
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise RqdError(f"{key} must be a whole number, got {value!r}", fix=f"Use e.g. {key}=7") from None
+
+
 def _problem_filter(r: dict, f: dict) -> bool:
     return (_search(f"{r['problem_id']} {r['statement']}", f.get("q"))
             and (not f.get("has_fit") or (r["fit"] is not None) == (f["has_fit"] == "yes"))
-            and (not f.get("fit_min") or (r["fit"] is not None and r["fit"] >= int(f["fit_min"])))
+            and (f["fit_min"] is None or (r["fit"] is not None and r["fit"] >= f["fit_min"]))
             and (not f.get("novelty") or r["novelty"] == f["novelty"])
             and (not f.get("stale") or bool(r["stale"]) == (f["stale"] == "yes"))
             and (not f.get("waiting") or f["waiting"] in r["waiting"])
@@ -255,10 +265,9 @@ def problems(roots: dict[str, Path], filters: dict, sort: str, page: int, page_s
              triage: dict | None = None) -> Table:
     if sort not in PROBLEM_SORTS:
         raise RqdError(f"unknown sort {sort!r}", fix=f"Use one of: {', '.join(PROBLEM_SORTS)}")
+    filters = {**filters, "fit_min": _whole_number(filters, "fit_min")}
     s = _stores(roots)
-    rows = []
-    for pid in s.problems:
-        rows.append(_problem_row(pid, s))
+    rows = [_problem_row(pid, s) for pid in s.problems]
     rows = _triaged([r for r in rows if _problem_filter(r, filters)], "problem_id", triage, filters.get("triage"))
     rows.sort(key=PROBLEM_SORTS[sort])
     return _page(rows, page, page_size, s.errors)

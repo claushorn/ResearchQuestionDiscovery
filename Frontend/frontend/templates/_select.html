@@ -1,0 +1,7 @@
+{# filter select: name, label, options [(value, text)] #}
+<label>{{ label }}
+  <select name="{{ name }}" onchange="this.form.submit()">
+    <option value="">any</option>
+    {% for value, text in options %}<option value="{{ value }}" {% if filters.get(name) == value %}selected{% endif %}>{{ text }}</option>{% endfor %}
+  </select>
+</label>

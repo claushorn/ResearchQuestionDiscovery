@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Opportunities{% endblock %}
+{% block content %}
+<h1>Opportunities</h1>
+<p class="lede">Scores: N novelty, V economic value, T tractability, F personal fit (0–10).</p>
+{% with errors=table.errors %}{% include "_errors.html" %}{% endwith %}
+<form class="filters" method="get">
+  <label>Search <input type="search" name="q" value="{{ filters.get('q', '') }}" placeholder="id or title"></label>
+  {% with name="recommendation", label="Recommendation", options=[("investigate","investigate"),("contact","contact"),("ignore","ignore")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="stale", label="Stale", options=[("yes","stale"),("no","up to date")] %}{% include "_select.html" %}{% endwith %}
+  {% include "_triage_filter.html" %}
+  <button type="submit">Filter</button>
+</form>
+<table class="data">
+  <thead><tr><th>Opportunity</th><th>Recommendation</th><th class="num">N</th><th class="num">V</th><th class="num">T</th><th class="num">F</th><th>Stale inputs</th><th>Title</th><th>Triage</th></tr></thead>
+  <tbody>
+  {% for r in table.rows %}
+    <tr>
+      <td><a href="/opportunities/{{ r.id }}/brief">{{ r.id }}</a><br><a class="small" href="/problems/{{ r.problem_id }}">{{ r.problem_id }}</a></td>
+      <td><span class="chip {{ 'accent' if r.recommendation == 'investigate' else 'ok' if r.recommendation == 'contact' else '' }}">{{ r.recommendation }}</span></td>
+      {% for s in r.scores %}<td class="num">{{ "?" if s is none else s }}</td>{% endfor %}
+      <td>{% for s in r.stale %}<span class="chip warn">{{ s }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
+      <td class="statement">{{ r.title }}</td>
+      <td>{% with kind="opportunity", item_id=r.id, t=r.triage %}{% include "triage.html" %}{% endwith %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9" class="muted">No opportunities yet. Select problems with a fit and run <em>generate opportunity</em>.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}

@@ -1,0 +1,18 @@
+{% macro badge(v) -%}
+<span class="chip {{ 'ok' if v == 'verified' else 'warn' }}">{{ v or "not checked" }}</span>
+{%- endmacro %}
+
+{% macro evidence(items) -%}
+{% if items %}
+<ul class="evidence">
+{% for e in items %}
+  <li>{{ badge(e.verification) }} <a href="{{ e.url }}" target="_blank" rel="noopener">{{ e.title or e.url }}</a>
+    {% if e.quote %}<blockquote>{{ e.quote }}</blockquote>{% endif %}</li>
+{% endfor %}
+</ul>
+{% else %}<p class="muted">No evidence.</p>{% endif %}
+{%- endmacro %}
+
+{% macro amount(v) -%}
+{% if v is mapping %}{{ v.low|money }}–{{ v.high|money }} {{ v.unit|replace("USD", "") }} <span class="chip {{ 'ok' if v.status == 'supported' else 'warn' }}">{{ v.status }}</span>{% if v.computed_from %} <span class="muted small">{{ v.computed_from }}</span>{% endif %}{% else %}{{ v or "—" }}{% endif %}
+{%- endmacro %}

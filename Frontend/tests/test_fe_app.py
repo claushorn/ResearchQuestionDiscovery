@@ -3,7 +3,7 @@ import shutil
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from fe_testing import make_frontend
+from fe_testing import make_frontend, seed
 from frontend import cli
 from frontend.app import create_app
 
@@ -11,7 +11,7 @@ NAV = ["Overview", "Candidates", "Problems", "Opportunities", "Challenges", "Age
 
 
 def test_overview_serves_the_nav(tmp_path):
-    res = TestClient(create_app(make_frontend(tmp_path))).get("/")
+    res = TestClient(create_app(seed(tmp_path)["root"])).get("/")
     assert res.status_code == 200
     for label in NAV:
         assert f">{label}</a>" in res.text

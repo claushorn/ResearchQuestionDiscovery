@@ -1,0 +1,8 @@
+{# the selection form: row checkboxes join it via form="selection" (tables hold triage forms, which cannot nest) #}
+<form id="selection" class="actions" method="post" action="/confirm">
+  <span class="muted small">Selected rows:</span>
+  {% for a in actions %}
+    <button type="submit" name="action" value="{{ a.key }}" {% if busy %}disabled title="{{ busy }}"{% endif %}>Run {{ a.label }}</button>
+  {% endfor %}
+  {% if busy %}<span class="chip warn">{{ busy }}</span>{% endif %}
+</form>

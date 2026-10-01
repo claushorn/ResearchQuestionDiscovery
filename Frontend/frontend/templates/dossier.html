@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% from "_macros.html" import badge, evidence, amount %}
+{% block title %}{{ d.problem_id }}{% endblock %}
+{% block content %}
+{% set p = d.problem %}
+<p class="small"><a href="/problems">Problems</a></p>
+<h1>{{ p.problem.precise_statement }}</h1>
+<p class="muted small">{{ d.problem_id }}, revision {{ p.revision }}
+  {% for s in d.row.stale %} <span class="chip warn">stale {{ s }}</span>{% endfor %}
+  {% for w in d.row.waiting %} <span class="chip">needs {{ w }}</span>{% endfor %}</p>
+<div class="actions">
+  {% with kind="problem", item_id=d.problem_id %}{% include "triage.html" %}{% endwith %}
+</div>
+<form id="selection" class="actions" method="post" action="/confirm">
+  <input type="hidden" name="ids" value="{{ d.problem_id }}">
+  {% for a in actions %}<button type="submit" name="action" value="{{ a.key }}" {% if busy %}disabled title="{{ busy }}"{% endif %}>Run {{ a.label }}</button>{% endfor %}
+</form>
+{% with errors=d.errors %}{% include "_errors.html" %}{% endwith %}
+
+<section class="block">
+<h2>Sources ({{ d.candidates|length }})</h2>
+{% for c in d.candidates %}
+  <div style="margin-bottom: 0.8rem">
+    <a href="{{ c.source.url }}" target="_blank" rel="noopener"><strong>{{ c.source.title }}</strong></a>
+    <span class="muted small">{{ c.source_id }}, tier {{ c.source.tier }}, {{ c.candidate_id }}</span><br>
+    Payment: {{ c.payment_signal.stated or c.payment_signal.type }}{% if c.payment_signal.deadline %}, deadline {{ c.payment_signal.deadline }}{% endif %}
+    {% if c.candidate %}
+      <blockquote>{{ c.candidate.candidate_problem.statement }}</blockquote>
+      {% if c.candidate.explicit_unsolved_signal and c.candidate.explicit_unsolved_signal.evidence %}<span class="small muted">Unsolved signal:</span> <span class="small">“{{ c.candidate.explicit_unsolved_signal.evidence }}”</span>{% endif %}
+    {% else %}<span class="muted small">(candidate file not found)</span>{% endif %}
+  </div>
+{% endfor %}
+</section>
+
+<section class="block">
+<h2>Problem</h2>
+<dl class="kv">
+  <dt>Known solution</dt><dd>{{ p.current_state.known_solution }}{% if p.current_state.known_solution_inferred %}<br><span class="muted">{{ p.current_state.known_solution_inferred }}</span>{% endif %}</dd>
+  <dt>What current methods cannot do</dt><dd>{{ p.failure.what_current_methods_cannot_do }}{% if p.failure.what_current_methods_cannot_do_inferred %}<br><span class="muted">{{ p.failure.what_current_methods_cannot_do_inferred }}</span>{% endif %}</dd>
+  <dt>Desired capability</dt><dd>{{ p.desired_capability }}</dd>
+  <dt>Why it matters</dt><dd>{{ p.why_it_matters }}</dd>
+  <dt>Unsolved</dt><dd>{% if p.unsolvedness.explicit %}stated by the source{% else %}inferred{% endif %}
+    {% if p.unsolvedness.explicit_evidence %}<blockquote>{{ p.unsolvedness.explicit_evidence }}</blockquote>{{ badge("verified" if p.unsolvedness.evidence_verified else "unverified") }}{% endif %}</dd>
+</dl>
+</section>
+
+<section class="block">
+<h2>Novelty</h2>
+{% set n = d.novelty %}
+{% if n %}
+<p><span class="chip {{ 'ok' if n.novelty.status == 'likely_open' else 'bad' if n.novelty.status == 'solved' else '' }}">{{ n.novelty.status }}</span>
+   <span class="muted">confidence {{ n.confidence }}</span></p>
+<dl class="kv">
+  <dt>Strongest counterargument</dt><dd>{{ n.strongest_counterargument }}</dd>
+  {% if n.difference_from_closest_work %}<dt>Difference from closest work</dt><dd>{{ n.difference_from_closest_work }}</dd>{% endif %}
+</dl>
+<h3 class="small muted">Closest work</h3>
+{{ evidence(n.closest_work) }}
+{% else %}<p class="muted">Not investigated yet.</p>{% endif %}
+</section>
+
+<section class="block">
+<h2>Economic value</h2>
+{% set e = d.ev %}
+{% if e %}
+{% set v = e.economic_value %}
+<dl class="kv">
+  <dt>Potential value</dt><dd>{{ amount(v.potential_value) }}</dd>
+  <dt>Current cost</dt><dd>{{ amount(v.current_cost) }}</dd>
+  <dt>Failure cost</dt><dd>{{ amount(v.failure_cost) }}</dd>
+  <dt>Beneficiary</dt><dd>{{ v.beneficiary.type }}: {{ v.beneficiary.description }}</dd>
+  <dt>Buyer</dt><dd>{{ v.buyer }}</dd>
+  {% if v.pain %}<dt>Pain</dt><dd>{{ v.pain.score }}: {{ v.pain.reasoning }}</dd>{% endif %}
+  {% if v.urgency %}<dt>Urgency</dt><dd>{{ v.urgency.level }}: {{ v.urgency.reasoning }}</dd>{% endif %}
+  <dt>Confidence</dt><dd>{{ e.confidence }}{% if e.gate %} <span class="muted small">(gate: {{ e.gate }})</span>{% endif %}</dd>
+</dl>
+{% if v.potential_value is mapping and v.potential_value.basis %}
+<h3 class="small muted">Basis of the estimate</h3>
+<ul>{% for b in v.potential_value.basis %}<li class="small">{% if b is mapping %}{% for k, x in b.items() %}{{ k }}: {{ x }}{% if not loop.last %}; {% endif %}{% endfor %}{% else %}{{ b }}{% endif %}</li>{% endfor %}</ul>
+{% endif %}
+<h3 class="small muted">Evidence</h3>
+{{ evidence(e.evidence) }}
+{% else %}<p class="muted">Not assessed yet.</p>{% endif %}
+</section>
+
+<section class="block">
+<h2>Fit</h2>
+{% set f = d.fit %}
+{% if f %}
+<p><strong>{{ f.personal_advantage.score }}/10</strong> <span class="muted">confidence {{ f.personal_advantage.confidence }}</span>
+  {% if d.fit_stale %}<span class="chip warn">stale: the problem or the profile changed</span>{% endif %}</p>
+{% if f.personal_advantage.reasoning %}<p>{{ f.personal_advantage.reasoning }}</p>{% endif %}
+<h3 class="small muted">Advantages</h3>
+<ul>{% for a in f.advantages %}<li>{{ a.claim }} <span class="muted small">({{ a.file }})</span>{% if a.quote %}<blockquote>{{ a.quote }}</blockquote>{% endif %}</li>{% else %}<li class="muted">none</li>{% endfor %}</ul>
+{% if f.gaps %}<h3 class="small muted">Gaps</h3>
+<ul>{% for g in f.gaps %}<li>{{ g.gap }}{% if g.how_to_close %} <span class="muted">({{ g.how_to_close }})</span>{% endif %}</li>{% endfor %}</ul>{% endif %}
+{% else %}<p class="muted">No fit yet.</p>{% endif %}
+</section>
+
+<section class="block">
+<h2>Opportunity</h2>
+{% set o = d.opportunity %}
+{% if o %}
+<p><a href="/opportunities/{{ o.id }}/brief">{{ o.id }} brief</a>
+   <span class="chip {{ 'accent' if o.recommendation == 'investigate' else '' }}">{{ o.recommendation }}</span>
+   <span class="muted">{{ o.recommendation_reason }}</span>
+   {% for s in d.opportunity_stale %} <span class="chip warn">stale {{ s }}</span>{% endfor %}</p>
+<p>{{ o.thesis }}</p>
+<h3 class="small muted">Evidence</h3>
+{{ evidence(o.evidence) }}
+{% else %}<p class="muted">No opportunity yet.</p>{% endif %}
+</section>
+{% endblock %}
