@@ -21,7 +21,7 @@ class UnsolvedSignal(_M):
 
 
 class PaymentSignal(_M):
-    type: Literal["prize", "grant", "contract", "hiring", "investor_thesis", "none_stated"]
+    type: Literal["prize", "grant", "contract", "hiring", "investor_thesis", "company_investment", "none_stated"]
     stated: str = ""
     evidence: str = ""
     deadline: str | None = None

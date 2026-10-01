@@ -16,7 +16,7 @@ explicit_unsolved_signal:
   present: true
   evidence: "<verbatim quote>"      # <= 50 words
 payment_signal:                     # raw, as stated; not scored
-  type: grant                       # prize | grant | contract | hiring | investor_thesis | none_stated
+  type: grant                       # prize | grant | contract | hiring | investor_thesis | company_investment | none_stated
   stated: "up to $1.5M"
   evidence: "<verbatim quote>"
   deadline: 2026-12-01              # or null

@@ -31,11 +31,11 @@ A candidate is a concrete technical problem (engineering, machine learning, data
 Extract; do not analyse. Report only what the document states. Do not estimate value, feasibility, market size or difficulty, and do not add knowledge from outside the document.
 
 Rules:
-- Return at most 3 candidates. Return an empty list when the document states no such problem, for example a sales, legal or generic operations job ad, a product announcement, or a write-up of a solved problem.
+- Return at most 3 candidates. Return an empty list when the document states no such problem, for example a sales, legal or generic operations job ad, a product announcement, or a write-up of a solved problem. A conference talk or industry paper counts only through the limitations, open challenges or next steps it states itself (quote them); a talk that only reports a success yields an empty list.
 - statement: the problem in at most 60 words, in plain technical language.
 - why_interesting: one sentence of at most 30 words restating what the document says makes it matter (who needs it, stated scale or cost). No speculation.
 - explicit_unsolved_signal: present is true only if the document itself says the problem is open, unsolved, a limitation, a challenge, or being sought. evidence is a verbatim quote of at most 50 words; an empty string when present is false.
-- payment_signal: type is one of prize, grant, contract, hiring, investor_thesis, none_stated. A job posting for a role whose work is to solve the problem is hiring. stated is the amount, headcount or funding as written (empty string if none). evidence is a verbatim quote of at most 50 words supporting it; an empty string when type is none_stated. deadline is the stated submission or closing date as YYYY-MM-DD, or null.
+- payment_signal: type is one of prize, grant, contract, hiring, investor_thesis, company_investment, none_stated. A job posting for a role whose work is to solve the problem is hiring. A conference talk or paper by a company's own staff about a problem their company works on is company_investment, with stated = the company name. stated is the amount, headcount or funding as written (empty string if none). evidence is a verbatim quote of at most 50 words supporting it; an empty string when type is none_stated. deadline is the stated submission or closing date as YYYY-MM-DD, or null.
 - Quotes are copied character for character from the document text: no ellipses, no paraphrase, no merged fragments.
 - technical_area: at most 3 short tags, e.g. "reinforcement learning", "protein design".
 - entities: at most 3 organisations and 3 named researchers most directly connected to the problem.

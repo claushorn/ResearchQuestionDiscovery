@@ -67,3 +67,12 @@ def test_empty_fields_may_be_omitted_so_claude_code_does_not_retry():
 
 def test_model_does_not_copy_urls_the_store_already_has():
     assert "referenced_urls" not in EXTRACTION_SCHEMA["$defs"]["ExtractedCandidate"]["properties"]
+
+
+def test_company_investment_payment_signal_names_the_company():
+    from sourcescout.extract import SYSTEM_PROMPT
+    from sourcescout.schema import PaymentSignal
+    p = PaymentSignal(type="company_investment", stated="General Motors",
+                      evidence="How GM & Acxiom Are Turning Foundational Customer Intelligence", deadline=None)
+    assert p.type == "company_investment"
+    assert "company_investment" in SYSTEM_PROMPT and "talk" in SYSTEM_PROMPT

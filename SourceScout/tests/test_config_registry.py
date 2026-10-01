@@ -7,7 +7,7 @@ from sourcescout.categories import load_categories
 from sourcescout.config import load_config
 from rqd.errors import ConfigError
 from sourcescout.errors import RegistryError
-from sourcescout.registry import Registry
+from sourcescout.registry import Registry, Source
 
 KINDS = {"page": (), "grants_gov": ("keyword",)}
 NOW = datetime(2026, 9, 30, 12, tzinfo=timezone.utc)
@@ -22,7 +22,7 @@ def test_categories_cover_v1_and_future(paths):
     cats = load_categories(paths.categories)
     enabled = {c.id for c in cats.values() if c.enabled}
     assert enabled == {"gov_solicitation", "challenge_platform", "job_board", "investor_thesis",
-                       "tech_blog", "conference_workshop"}
+                       "tech_blog", "conference_workshop", "industry_talk"}
     assert "academic_papers" in cats and not cats["academic_papers"].enabled
 
 
@@ -59,9 +59,70 @@ def test_registry_save_load_roundtrip(paths):
     reg = make_registry(paths, [src()], KINDS)
     reg.get("s1").yield_.candidates = 3
     reg.save()
-    assert "yield:" in paths.registry.read_text()
+    assert "yield:" in paths.registry_state.read_text()
     again = Registry.load(paths.registry, reg.categories, KINDS)
     assert again.get("s1").yield_.candidates == 3
+
+
+CURATED = """sources:
+- id: s1
+  name: S1
+  category: tech_blog
+  kind: rss
+  url: https://a.example/feed
+"""
+
+
+def _load(paths):
+    from sourcescout.adapters import REQUIRED_PARAMS
+    return Registry.load(paths.registry, load_categories(paths.categories), REQUIRED_PARAMS)
+
+
+def test_save_never_writes_the_tracked_registry(paths):
+    # the tracked registry.yaml holds curated config only; runtime state and discovered sources live in data/
+    paths.registry.write_text(CURATED)
+    reg = _load(paths)
+    reg.get("s1").yield_.scans = 2
+    reg.add(Source(id="d1", name="D1", category="tech_blog", kind="rss", url="https://d.example/feed",
+                   status="candidate", provenance="discovered_from:abc"))
+    reg.save()
+    assert paths.registry.read_text() == CURATED
+    again = _load(paths)
+    assert again.get("s1").yield_.scans == 2 and again.get("d1").provenance == "discovered_from:abc"
+    assert again.get("d1").status == "candidate"
+
+
+def test_inline_state_is_migrated_with_a_warning(paths, caplog):
+    legacy = CURATED + """  status: retired
+  last_scanned: '2026-09-30T11:11:25+00:00'
+  yield:
+    scans: 4
+- id: d1
+  name: D1
+  category: tech_blog
+  kind: rss
+  url: https://d.example/feed
+  status: candidate
+  provenance: discovered_from:abc
+"""
+    paths.registry.write_text(legacy)
+    reg = _load(paths)
+    assert reg.get("s1").status == "retired" and reg.get("s1").yield_.scans == 4 and reg.get("d1")
+    assert "runtime state" in caplog.text and "git checkout" in caplog.text
+    reg.save()
+    assert paths.registry.read_text() == legacy                     # never rewritten
+    paths.registry.write_text(CURATED)                               # the user restores the tracked file
+    again = _load(paths)
+    assert again.get("s1").status == "retired" and again.get("d1").provenance == "discovered_from:abc"
+
+
+def test_state_file_wins_over_stale_inline_state(paths):
+    paths.registry.write_text(CURATED)
+    reg = _load(paths)
+    reg.get("s1").yield_.scans = 9
+    reg.save()
+    paths.registry.write_text(CURATED + "  yield:\n    scans: 1\n")
+    assert _load(paths).get("s1").yield_.scans == 9
 
 
 def test_registry_load_reports_invalid_entry(paths):

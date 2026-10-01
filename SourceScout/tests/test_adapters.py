@@ -176,3 +176,91 @@ def test_finished_listing_flags_every_entry():
     src = S("html_list", "https://ac.example/completed", link_selector='a[href^="/c/"]', finished_listing=True)
     assert [(i.title, i.finished) for i in KINDS["html_list"].fetch(src, make_fetcher(routes), never)] == [
         ("C1", True), ("C2", True)]
+
+
+# --- industry talks: one item per session, from JSON (feed or embedded) or from sections of one static page
+
+import json as _json
+
+NEXT = ("<html><body><script id=\"__NEXT_DATA__\" type=\"application/json\">" + _json.dumps({"props": {"pageProps": {
+    "agenda": {"sessions": [
+        {"id": 11, "title": "Precision Targeting at Scale", "body": "<p>How GM turns customer data into outcomes.</p>",
+         "speakers": [{"name": "A", "company": "General Motors", "job_title": "Director"}], "slug": "precision"},
+        {"id": 12, "title": "Make Me a Map", "body": "A GIS agent.", "speakers": [{"name": "B", "company": "Felt"}],
+         "slug": "map"}]}}}}) + "</script></body></html>")
+
+PRETALX = {"schedule": {"conference": {"days": [
+    {"date": "2026-06-05", "rooms": {"Main": [{"guid": "g1", "title": "Document intelligence", "abstract": "Parsing PDFs.",
+                                               "persons": [{"public_name": "C", "biography": "Works at Acme."}],
+                                               "url": "https://pretalx.example/t/1/"}],
+                                     "Side": []}},
+    {"date": "2026-06-06", "rooms": {"Main": [{"guid": "g2", "title": "Forecasting retail demand", "abstract": "At Zalando.",
+                                               "persons": [], "url": "https://pretalx.example/t/2/"}]}}]}}}
+
+
+def test_json_sessions_from_embedded_next_data():
+    src = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
+            items_path="props.pageProps.agenda.sessions", title_field="title",
+            text_fields=["body", "speakers.*.company", "speakers.*.job_title"], id_field="slug")
+    items = KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://conf.example/agenda": NEXT}), never)
+    assert [(i.url, i.title) for i in items] == [("https://conf.example/agenda#precision", "Precision Targeting at Scale"),
+                                                 ("https://conf.example/agenda#map", "Make Me a Map")]
+    assert "How GM turns customer data into outcomes." in items[0].text and "General Motors" in items[0].text
+    assert "<p>" not in items[0].text and "Director" in items[0].text
+
+
+def test_json_sessions_relative_url_field_resolves_against_the_listing():
+    src = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
+            items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], url_field="path")
+    page = NEXT.replace('"slug": "precision"', '"slug": "precision", "path": "/session/precision"')
+    items = KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://conf.example/agenda": page}), never)
+    assert items[0].url == "https://conf.example/session/precision" and items[1].url == "https://conf.example/agenda#make-me-a-map"
+
+
+def test_json_sessions_pretalx_nested_days_and_rooms_with_url_field():
+    src = S("json_sessions", "https://pretalx.example/ev/schedule/export/schedule.json",
+            items_path="schedule.conference.days.*.rooms.*.*", title_field="title",
+            text_fields=["abstract", "persons.*.biography"], url_field="url", date_field="date")
+    items = KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://pretalx.example/ev/schedule/export/schedule.json": PRETALX}), never)
+    assert [i.url for i in items] == ["https://pretalx.example/t/1/", "https://pretalx.example/t/2/"]
+    assert "Works at Acme." in items[0].text
+
+
+def test_json_sessions_skips_known_caps_and_rejects_a_wrong_path():
+    src = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
+            items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], id_field="slug",
+            max_items=1)
+    f = make_fetcher({"GET https://conf.example/agenda": NEXT})
+    assert [i.title for i in KINDS["json_sessions"].fetch(src, f, lambda u: u.endswith("#precision"))] == ["Make Me a Map"]
+    assert len(KINDS["json_sessions"].fetch(src, f, never)) == 1
+    bad = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
+            items_path="props.pageProps.sessions", title_field="title", text_fields=["body"], id_field="slug")
+    with pytest.raises(SourceFetchError, match="items_path"):
+        KINDS["json_sessions"].fetch(bad, f, never)
+    with pytest.raises(SourceFetchError, match="script#__NEXT_DATA__"):
+        KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://conf.example/agenda": "<html>redesigned</html>"}), never)
+
+
+SECTIONS = """<html><body><h1>Industry papers</h1>
+<div class="paper" id="ind-1"><h3>Agentic Personalisation of Cross-Channel Marketing</h3><p>Authors (Aampe)</p>
+<p>We personalise messages with agents.</p></div>
+<div class="paper"><h3>Playlist curation with LLM query expansion</h3><p>(Japan Broadcasting Corporation)</p></div>
+</body></html>"""
+
+
+def test_html_sections_one_item_per_talk():
+    src = S("html_sections", "https://conf.example/accepted", section_selector="div.paper", title_selector="h3")
+    items = KINDS["html_sections"].fetch(src, make_fetcher({"GET https://conf.example/accepted": SECTIONS}), never)
+    assert [i.title for i in items] == ["Agentic Personalisation of Cross-Channel Marketing",
+                                        "Playlist curation with LLM query expansion"]
+    assert items[0].url == "https://conf.example/accepted#ind-1"
+    assert items[1].url == "https://conf.example/accepted#playlist-curation-with-llm-query-expansion"
+    assert "Aampe" in items[0].text and "We personalise messages with agents." in items[0].text
+    with pytest.raises(SourceFetchError, match="div.talk"):
+        KINDS["html_sections"].fetch(S("html_sections", "https://conf.example/accepted", section_selector="div.talk"),
+                                     make_fetcher({"GET https://conf.example/accepted": SECTIONS}), never)
+
+
+def test_talk_adapters_declare_required_params():
+    assert set(REQUIRED_PARAMS["json_sessions"]) == {"items_path", "title_field", "text_fields"}
+    assert REQUIRED_PARAMS["html_sections"] == ("section_selector",)

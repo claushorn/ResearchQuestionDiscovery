@@ -34,7 +34,7 @@ def test_scan_new_unchanged_changed_and_failure_isolated(paths):
     assert run_scan(reg, store, routes).scan["ok"].unchanged == 1
     routes["GET https://a.example/p"] = PAGE.format(t="T", b="v2")
     assert run_scan(reg, store, routes).scan["ok"].changed == 1
-    assert "consecutive_failures: 3" in paths.registry.read_text()
+    assert "consecutive_failures: 3" in paths.registry_state.read_text()
 
 
 def test_title_filter(paths):

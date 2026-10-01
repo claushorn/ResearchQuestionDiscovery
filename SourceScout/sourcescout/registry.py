@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 from datetime import datetime, timedelta
@@ -48,6 +49,15 @@ class Source(BaseModel):
         return now - datetime.fromisoformat(self.last_scanned) >= timedelta(hours=self.cadence_hours)
 
 
+log = logging.getLogger("sourcescout")
+STATE_FIELDS = ("status", "provenance", "last_scanned", "health", "yield")  # written by the tools, never by hand
+
+
+def state_path(registry_path: Path) -> Path:
+    """Runtime state and discovered sources: git-ignored, so the tracked registry.yaml stays curated config only."""
+    return registry_path.parent / "data" / "registry_state.yaml"
+
+
 _RENAMED = {"skip_link_text": "finished_link_text", "stop_at_heading": "finished_after_heading"}
 _FIX = "Edit SourceScout/registry.yaml (categories: sources.yaml; kinds: sourcescout/adapters)"
 
@@ -61,6 +71,7 @@ class Registry:
         self.sources: list[Source] = []
         for s in sources:
             self.add(s)
+        self.curated = {s.id for s in sources if s.provenance == "seeded"}  # from registry.yaml; others: discovered
 
     @classmethod
     def load(cls, path: Path, categories: dict[str, Category], kinds: dict[str, tuple[str, ...]]) -> "Registry":
@@ -68,13 +79,24 @@ class Registry:
         raw_sources = data.get("sources") if isinstance(data, dict) else None
         if not isinstance(raw_sources, list):
             raise RegistryError(f"{path}: expected a mapping with a 'sources' list", fix=_FIX)
-        sources = []
-        for i, raw in enumerate(raw_sources):
+        sp = state_path(path)
+        saved = load_yaml(sp, RegistryError) if sp.exists() else {}
+        state, discovered = (saved or {}).get("state") or {}, (saved or {}).get("discovered") or []
+        if any(isinstance(raw, dict) and set(raw) & set(STATE_FIELDS) for raw in raw_sources):
+            log.warning("%s contains runtime state from before it moved to %s; %s. Restore the tracked file with "
+                        "`git checkout -- SourceScout/registry.yaml`", path, sp,
+                        "that state file now wins" if sp.exists() else "it is migrated on the next save")
+        sources, seen = [], set()
+        for i, raw in enumerate(list(raw_sources) + list(discovered)):
+            sid = raw.get("id", "?") if isinstance(raw, dict) else "?"
+            if sid in seen:  # a discovered source still inline in a pre-split registry.yaml
+                continue
             try:
-                sources.append(Source.model_validate(raw))
-            except ValidationError as e:
-                sid = raw.get("id", "?") if isinstance(raw, dict) else "?"
-                raise RegistryError(f"{path}: source #{i} ({sid}) is invalid:\n{e}", fix=_FIX) from e
+                sources.append(Source.model_validate({**raw, **state.get(sid, {})}))
+            except (ValidationError, TypeError) as e:
+                where = path if i < len(raw_sources) else sp
+                raise RegistryError(f"{where}: source #{i} ({sid}) is invalid:\n{e}", fix=_FIX) from e
+            seen.add(sid)
         return cls(path, sources, categories, kinds)
 
     def _validate(self, s: Source) -> None:
@@ -135,7 +157,12 @@ class Registry:
         return out
 
     def save(self) -> None:
-        data = {"sources": [s.model_dump(by_alias=True) for s in self.sources]}
-        tmp = self.path.with_suffix(".yaml.tmp")
+        """Writes the runtime state of every source and the discovered sources; never the tracked registry.yaml."""
+        dumps = {s.id: s.model_dump(by_alias=True) for s in self.sources}
+        data = {"state": {sid: {k: d[k] for k in STATE_FIELDS} for sid, d in dumps.items()},
+                "discovered": [d for sid, d in dumps.items() if sid not in self.curated]}
+        sp = state_path(self.path)
+        sp.parent.mkdir(parents=True, exist_ok=True)
+        tmp = sp.with_suffix(".yaml.tmp")
         tmp.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding="utf-8")
-        os.replace(tmp, self.path)
+        os.replace(tmp, sp)

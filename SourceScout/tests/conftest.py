@@ -2,11 +2,12 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from sourcescout.categories import load_categories
 from rqd_testing import make_fetcher  # noqa: F401  (re-exported for SourceScout tests)
 from sourcescout.config import Paths
-from sourcescout.registry import Registry, Source
+from sourcescout.registry import STATE_FIELDS, Registry, Source
 
 REPO_SCOUT = Path(__file__).resolve().parents[1]
 
@@ -24,4 +25,7 @@ def make_registry(paths: Paths, sources: list[dict], kinds: dict | None = None) 
         from sourcescout.adapters import REQUIRED_PARAMS
         kinds = REQUIRED_PARAMS
     cats = load_categories(paths.categories)
-    return Registry(paths.registry, [Source.model_validate(s) for s in sources], cats, kinds)
+    parsed = [Source.model_validate(s) for s in sources]
+    curated = [{k: v for k, v in s.items() if k not in STATE_FIELDS} for s in sources if s.get("provenance", "seeded") == "seeded"]
+    paths.registry.write_text(yaml.safe_dump({"sources": curated}, sort_keys=False))  # as the user curates it
+    return Registry(paths.registry, parsed, cats, kinds)

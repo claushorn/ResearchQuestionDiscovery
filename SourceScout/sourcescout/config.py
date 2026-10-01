@@ -57,6 +57,10 @@ class Paths:
         return self.root / "registry.yaml"
 
     @property
+    def registry_state(self) -> Path:
+        return self.root / "data" / "registry_state.yaml"
+
+    @property
     def config(self) -> Path:
         return self.root / "config.yaml"
 
