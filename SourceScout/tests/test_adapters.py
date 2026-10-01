@@ -203,8 +203,8 @@ def test_json_sessions_from_embedded_next_data():
             items_path="props.pageProps.agenda.sessions", title_field="title",
             text_fields=["body", "speakers.*.company", "speakers.*.job_title"], id_field="slug")
     items = KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://conf.example/agenda": NEXT}), never)
-    assert [(i.url, i.title) for i in items] == [("https://conf.example/agenda#precision", "Precision Targeting at Scale"),
-                                                 ("https://conf.example/agenda#map", "Make Me a Map")]
+    assert [(i.url, i.title) for i in items] == [("https://conf.example/agenda?talk=precision", "Precision Targeting at Scale"),
+                                                 ("https://conf.example/agenda?talk=map", "Make Me a Map")]
     assert "How GM turns customer data into outcomes." in items[0].text and "General Motors" in items[0].text
     assert "<p>" not in items[0].text and "Director" in items[0].text
 
@@ -214,7 +214,7 @@ def test_json_sessions_relative_url_field_resolves_against_the_listing():
             items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], url_field="path")
     page = NEXT.replace('"slug": "precision"', '"slug": "precision", "path": "/session/precision"')
     items = KINDS["json_sessions"].fetch(src, make_fetcher({"GET https://conf.example/agenda": page}), never)
-    assert items[0].url == "https://conf.example/session/precision" and items[1].url == "https://conf.example/agenda#make-me-a-map"
+    assert items[0].url == "https://conf.example/session/precision" and items[1].url == "https://conf.example/agenda?talk=make-me-a-map"
 
 
 def test_json_sessions_pretalx_nested_days_and_rooms_with_url_field():
@@ -231,7 +231,7 @@ def test_json_sessions_skips_known_caps_and_rejects_a_wrong_path():
             items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], id_field="slug",
             max_items=1)
     f = make_fetcher({"GET https://conf.example/agenda": NEXT})
-    assert [i.title for i in KINDS["json_sessions"].fetch(src, f, lambda u: u.endswith("#precision"))] == ["Make Me a Map"]
+    assert [i.title for i in KINDS["json_sessions"].fetch(src, f, lambda u: u.endswith("?talk=precision"))] == ["Make Me a Map"]
     assert len(KINDS["json_sessions"].fetch(src, f, never)) == 1
     bad = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
             items_path="props.pageProps.sessions", title_field="title", text_fields=["body"], id_field="slug")
@@ -253,8 +253,8 @@ def test_html_sections_one_item_per_talk():
     items = KINDS["html_sections"].fetch(src, make_fetcher({"GET https://conf.example/accepted": SECTIONS}), never)
     assert [i.title for i in items] == ["Agentic Personalisation of Cross-Channel Marketing",
                                         "Playlist curation with LLM query expansion"]
-    assert items[0].url == "https://conf.example/accepted#ind-1"
-    assert items[1].url == "https://conf.example/accepted#playlist-curation-with-llm-query-expansion"
+    assert items[0].url == "https://conf.example/accepted?talk=ind-1"
+    assert items[1].url == "https://conf.example/accepted?talk=playlist-curation-with-llm-query-expansion"
     assert "Aampe" in items[0].text and "We personalise messages with agents." in items[0].text
     with pytest.raises(SourceFetchError, match="div.talk"):
         KINDS["html_sections"].fetch(S("html_sections", "https://conf.example/accepted", section_selector="div.talk"),
@@ -264,3 +264,14 @@ def test_html_sections_one_item_per_talk():
 def test_talk_adapters_declare_required_params():
     assert set(REQUIRED_PARAMS["json_sessions"]) == {"items_path", "title_field", "text_fields"}
     assert REQUIRED_PARAMS["html_sections"] == ("section_selector",)
+
+
+def test_talks_without_their_own_page_get_distinct_store_ids():
+    # measured: the store drops #fragments (canonical_url), so '#id' URLs collapsed every talk into one item
+    from sourcescout.store import item_id_for
+    src = S("html_sections", "https://conf.example/accepted", section_selector="div.paper", title_selector="h3")
+    items = KINDS["html_sections"].fetch(src, make_fetcher({"GET https://conf.example/accepted": SECTIONS}), never)
+    src2 = S("json_sessions", "https://conf.example/agenda", embedded="script#__NEXT_DATA__",
+             items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], id_field="slug")
+    items += KINDS["json_sessions"].fetch(src2, make_fetcher({"GET https://conf.example/agenda": NEXT}), never)
+    assert len({item_id_for(i.url) for i in items}) == len(items) == 4

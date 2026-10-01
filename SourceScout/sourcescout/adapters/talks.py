@@ -4,10 +4,11 @@
   (`embedded`: a CSS selector of the <script>, e.g. Next.js `script#__NEXT_DATA__`). `items_path` is a dotted
   path to the sessions; `*` steps into every element of a list or every value of a mapping.
 - html_sections: one static page listing many talks; `section_selector` wraps one talk.
-Sessions without a page of their own get the URL `<listing URL>#<id>`."""
+Sessions without a page of their own get the URL `<listing URL>?talk=<id>` (a query, not a #fragment: the store's
+canonical URL drops fragments, which would merge every talk into one item)."""
 import json
 import re
-from urllib.parse import urljoin
+from urllib.parse import quote, urljoin
 
 from selectolax.parser import HTMLParser
 
@@ -31,6 +32,10 @@ def _walk(value, path: list[str]) -> list:
 
 def _text(value) -> str:
     return html_to_text(value)[0] if isinstance(value, str) and "<" in value else str(value)
+
+
+def _talk_url(listing: str, key: str) -> str:
+    return f"{listing}{'&' if '?' in listing else '?'}talk={quote(str(key), safe='')}"
 
 
 def _slug(title: str) -> str:
@@ -66,7 +71,7 @@ def fetch_json_sessions(source: Source, http: Fetcher, is_known: IsKnown,
             url = urljoin(source.url, str(s[p["url_field"]]))
         else:
             key = s.get(p["id_field"]) if p.get("id_field") else None
-            url = f"{source.url}#{key if key not in (None, '') else _slug(title)}"
+            url = _talk_url(source.url, key if key not in (None, "") else _slug(title))
         if is_known(url):
             continue
         parts = [f"{field}: {_text(v)}" for field in p["text_fields"] for v in _walk(s, field.split("."))
@@ -90,7 +95,7 @@ def fetch_html_sections(source: Source, http: Fetcher, is_known: IsKnown,
         title_node = node.css_first(p.get("title_selector", "h1, h2, h3, h4, h5, h6"))
         title = title_node.text(strip=True) if title_node else ""
         anchor = node.attributes.get("id") or _slug(title)
-        url = f"{source.url}#{anchor}"
+        url = _talk_url(source.url, anchor)
         if not anchor or is_known(url):
             continue
         text, links = html_to_text(node.html, str(resp.url))
