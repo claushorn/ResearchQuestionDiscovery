@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Candidates{% endblock %}
+{% block content %}
+<h1>Candidates</h1>
+<p class="lede">Problem candidates SourceScout found. Unprocessed ones wait for extraction by ProblemExtractor.</p>
+{% with errors=table.errors %}{% include "_errors.html" %}{% endwith %}
+<form class="filters" method="get">
+  <label>Search <input type="search" name="q" value="{{ filters.get('q', '') }}" placeholder="id, title, statement"></label>
+  {% with name="tier", label="Tier", options=[("A","A"),("B","B"),("C","C"),("D","D"),("E","E")] %}{% include "_select.html" %}{% endwith %}
+  <label>Category <input type="text" name="category" value="{{ filters.get('category', '') }}" placeholder="e.g. tech_blog" size="14"></label>
+  {% with name="processed", label="Extracted", options=[("yes","yes"),("no","no")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="due", label="Deadline", options=[("open","open or none"),("passed","passed")] %}{% include "_select.html" %}{% endwith %}
+  {% include "_triage_filter.html" %}
+  <button type="submit">Filter</button>
+</form>
+{% include "_actions.html" %}
+<table class="data">
+  <thead><tr><th class="sel"></th><th>Source</th><th>Tier</th><th>Statement</th><th>Payment</th><th>Deadline</th><th>Problem</th><th>Triage</th></tr></thead>
+  <tbody>
+  {% for r in table.rows %}
+    <tr>
+      <td class="sel"><input type="checkbox" name="ids" value="{{ r.candidate_id }}" form="selection" aria-label="select {{ r.candidate_id }}" {% if r.decision %}disabled title="already extracted"{% endif %}></td>
+      <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a><br><span class="muted small">{{ r.source_id }}{% if r.category %}, {{ r.category }}{% endif %}</span></td>
+      <td>{{ r.tier }}</td>
+      <td class="statement"><span class="clamp" title="{{ r.statement }}">{{ r.statement }}</span><span class="muted small">{{ r.candidate_id }}</span></td>
+      <td>{{ r.payment }}</td>
+      <td>{{ r.deadline or "—" }}{% if r.due_passed %} <span class="chip bad">due passed</span>{% endif %}</td>
+      <td>{% if r.problem_id %}<a href="/problems/{{ r.problem_id }}">{{ r.problem_id }}</a> <span class="muted small">{{ r.decision }}</span>
+          {% elif r.decision %}<span class="muted">{{ r.decision }}</span>{% else %}<span class="chip">waiting</span>{% endif %}</td>
+      <td>{% with kind="candidate", item_id=r.candidate_id, t=r.triage %}{% include "triage.html" %}{% endwith %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8" class="muted">No candidates match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}

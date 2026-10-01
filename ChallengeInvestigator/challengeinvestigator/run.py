@@ -38,19 +38,38 @@ class CIContext:
     @classmethod
     def open(cls, paths: CIPaths, cfg: CIConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "CIContext":
-        db = (paths.root / cfg.sourcescout_root).resolve() / "data" / "scout.db"
-        if not db.exists():
-            raise ConfigError(f"SourceScout store not found at {db}", fix="Set sourcescout_root in ChallengeInvestigator/config.yaml")
-        return cls(cfg, paths, Store(db), YamlStore(paths.challenges), client, fetcher,
+        return cls(cfg, paths, scout_store(paths, cfg), YamlStore(paths.challenges), client, fetcher,
                    run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
+
+
+def scout_store(paths: CIPaths, cfg: CIConfig) -> Store:
+    """SourceScout's store (read-only use): finished challenges come from it."""
+    db = (paths.root / cfg.sourcescout_root).resolve() / "data" / "scout.db"
+    if not db.exists():
+        raise ConfigError(f"SourceScout store not found at {db}", fix="Set sourcescout_root in ChallengeInvestigator/config.yaml")
+    return Store(db)
+
+
+def _not_finished(item_id: str) -> RqdError:
+    return RqdError(f"{item_id} is not a finished challenge in the SourceScout store",
+                    fix="See `uv run challenges list` (finished challenges come from `sourcescout scan`)")
 
 
 def _finished(ctx: CIContext, item_id: str) -> StoredItem:
     item = ctx.store.get(item_id)
     if item is None or not item.finished:
-        raise RqdError(f"{item_id} is not a finished challenge in the SourceScout store",
-                       fix="See `uv run challenges list` (finished challenges come from `sourcescout scan`)")
+        raise _not_finished(item_id)
     return item
+
+
+def refusal(store: Store, challenges: YamlStore, item_id: str, force: bool) -> RqdError | None:
+    """Pre-spend check of `investigate` on the stores alone: None = runnable, else the refusal (message and fix)."""
+    item = store.get(item_id)
+    if item is None or not item.finished:
+        return _not_finished(item_id)
+    if not force and challenges.exists(item_id) and challenges.load(item_id)["headroom"]["verdict"] == "solved":
+        return RqdError(f"{item_id}: the headroom check found it solved", fix="Pick another challenge, or pass --force")
+    return None
 
 
 def _session(ctx: CIContext, record_id: str, agent: AgentCfg, prompt: str, user: str, schema: dict, model_cls):
@@ -181,8 +200,7 @@ def investigate_one(ctx: CIContext, item_id: str, force: bool) -> str:
 def investigate(ctx: CIContext, item_ids: list[str], force: bool = False) -> dict[str, str]:
     """Checks every id before any spend: known-solved challenges are refused unless forced."""
     for i in item_ids:
-        _finished(ctx, i)
-        if not force and ctx.challenges.exists(i) and ctx.challenges.load(i)["headroom"]["verdict"] == "solved":
-            raise RqdError(f"{i}: the headroom check found it solved", fix="Pick another challenge, or pass --force")
+        if (refused := refusal(ctx.store, ctx.challenges, i, force)) is not None:
+            raise refused
     return run_each(item_ids, lambda i: investigate_one(ctx, i, force), log=log, tag="investigate",
                     budget=ctx.cfg.investigate_agent.max_budget_usd)

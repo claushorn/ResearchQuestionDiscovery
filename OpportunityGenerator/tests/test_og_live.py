@@ -24,6 +24,6 @@ def test_live_generation_without_novelty_or_ev(tmp_path):
     cfg = load_config(paths.config)
     ctx = OGContext.open(paths, cfg, make_client("claude_code"), Fetcher(cfg.http))
     assert generate(ctx, ["prob-a"]) == {}
-    rec = ctx.opportunities.load("OPP-0001")
+    rec = ctx.stores.opportunities.load("OPP-0001")
     assert rec["opportunity_profile"]["novelty"] is None and rec["opportunity_profile"]["economic_value"] is None
     assert "not checked: run noveltyinvestigator" in (paths.briefs / "OPP-0001.md").read_text()

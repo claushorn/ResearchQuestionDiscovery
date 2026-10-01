@@ -73,3 +73,14 @@ def test_list_flags_problems_whose_deadlines_all_passed(root, tmp_path, monkeypa
     YamlStore(root / "problems").save(rec, "prob-x")
     res = runner.invoke(app, ["--root", str(root), "list"])
     assert "prob-x" in res.output and "DUE PASSED" in res.output
+
+
+def test_run_candidate_option_is_repeatable(root, tmp_path, monkeypatch):
+    cs = [candidate(0), candidate(1), candidate(2)]
+    seed(tmp_path / "SourceScout", cs)
+    monkeypatch.setattr(cli, "make_client", lambda backend: FakeClient([message(pe_output()), message(pe_output())]))
+    res = runner.invoke(app, ["--root", str(root), "run", "--candidate", cs[2]["candidate_id"],
+                              "--candidate", cs[0]["candidate_id"]])
+    assert res.exit_code == 0 and "candidates processed: 2" in res.output
+    res = runner.invoke(app, ["--root", str(root), "run", "--candidate", "cand-nope"])
+    assert res.exit_code == 1 and "ERROR:" in res.output and "cand-nope" in res.output and "Traceback" not in res.output

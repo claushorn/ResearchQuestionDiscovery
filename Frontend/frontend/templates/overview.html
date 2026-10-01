@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<h1>Overview</h1>
+<p class="lede">What each stage holds, and what waits for the next stage.</p>
+{% if busy %}<p><span class="chip warn">Run is unavailable: {{ busy }}</span></p>{% endif %}
+{% include "_errors.html" %}
+<div class="stages">
+{% for s in stages %}
+  <a class="stage" href="{{ s.href }}" style="color: inherit; text-decoration: none">
+    <h2>{{ s.stage }}</h2>
+    <div class="count">{{ s.count }}</div>
+    <dl>
+      {% if s.waiting is defined %}<dt>{{ s.waiting }}</dt><dd>waiting for {{ s.waiting_for }}</dd>{% endif %}
+      {% if s.stale is defined %}<dt>{{ s.stale }}</dt><dd>stale</dd>{% endif %}
+    </dl>
+  </a>
+{% endfor %}
+</div>
+{% endblock %}

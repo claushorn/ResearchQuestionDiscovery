@@ -52,7 +52,7 @@ def test_generate_record_and_brief(env):
     call = runner.calls[0]
     assert "Large funds may already solve this internally." in call["input"] and "systematic funds" in call["input"]
     assert "project_notes.md" in call["input"]
-    rec = ctx.opportunities.load("OPP-0001")
+    rec = ctx.stores.opportunities.load("OPP-0001")
     assert rec["problem_id"] == "prob-a" and rec["recommendation"] == "investigate"
     p = rec["opportunity_profile"]
     assert (p["novelty"], p["economic_value"], p["tractability"], p["personal_advantage"]) == (8, 7, 6, 9)
@@ -77,7 +77,7 @@ def test_low_fit_is_ignored_whatever_the_model_says(env):
     out = og_output(novelty_score=None, economic_value_score=None, next_step="contact")
     ctx, _ = context(env, [session(out)])
     generate(ctx, ["prob-b"])
-    rec = ctx.opportunities.load("OPP-0001")
+    rec = ctx.stores.opportunities.load("OPP-0001")
     assert rec["opportunity_profile"]["personal_advantage"] == 4 and rec["recommendation"] == "ignore"
     assert rec["opportunity_profile"]["novelty"] is None and rec["confidence"]["novelty"] is None
 
@@ -87,31 +87,31 @@ def test_rule_violation_fails_that_problem_only(env):
     ctx, _ = context(env, [session(bad), session(og_output(novelty_score=None, economic_value_score=None))])
     failures = generate(ctx, ["prob-a", "prob-b"])
     assert list(failures) == ["prob-a"] and "novelty" in failures["prob-a"]
-    assert ctx.opportunities.load("OPP-0001")["problem_id"] == "prob-b"
+    assert ctx.stores.opportunities.load("OPP-0001")["problem_id"] == "prob-b"
 
 
 def test_unsupported_numbers_are_warned_but_experiment_cost_is_exempt(env):
     out = og_output(thesis="Could add 12.5% to returns; regime shifts degrade policies by 40%.")
     ctx, _ = context(env, [session(out)])
     generate(ctx, ["prob-a"])
-    assert ctx.opportunities.load("OPP-0001")["warnings"]["unsupported_numbers"] == ["thesis: 12.5%"]
+    assert ctx.stores.opportunities.load("OPP-0001")["warnings"]["unsupported_numbers"] == ["thesis: 12.5%"]
 
 
 def test_unsupported_money_amounts_are_warned(env):
     ctx, _ = context(env, [session(og_output(thesis="Funds spend $2bn a year; the market is 80,000,000 USD."))])
     generate(ctx, ["prob-a"])
-    assert ctx.opportunities.load("OPP-0001")["warnings"]["unsupported_amounts"] == ["thesis: $2bn"]
+    assert ctx.stores.opportunities.load("OPP-0001")["warnings"]["unsupported_amounts"] == ["thesis: $2bn"]
 
 
 def test_regenerate_keeps_the_id_and_stale_inputs(env, tmp_path):
     ctx, _ = context(env, [session(), session()])
     generate(ctx, ["prob-a"])
-    assert stale_inputs(ctx, ctx.opportunities.load("OPP-0001")) == []
+    assert stale_inputs(ctx.stores, ctx.stores.opportunities.load("OPP-0001")) == []
     YamlStore(tmp_path / "NoveltyInvestigator" / "investigations").save(novelty(revision=2), "prob-a")
-    assert stale_inputs(ctx, ctx.opportunities.load("OPP-0001")) == ["novelty"]
+    assert stale_inputs(ctx.stores, ctx.stores.opportunities.load("OPP-0001")) == ["novelty"]
     generate(ctx, ["prob-a"])
-    rec = ctx.opportunities.load("OPP-0001")
-    assert rec["revision"] == 2 and len(rec["history"]) == 1 and not ctx.opportunities.exists("OPP-0002")
+    rec = ctx.stores.opportunities.load("OPP-0001")
+    assert rec["revision"] == 2 and len(rec["history"]) == 1 and not ctx.stores.opportunities.exists("OPP-0002")
 
 
 def test_cli_generate_list_show(env, monkeypatch):
@@ -175,7 +175,7 @@ def test_inferred_fields_and_counterarguments_do_not_back_numbers(env, tmp_path)
     YamlStore(tmp_path / "NoveltyInvestigator" / "investigations").save(n, "prob-a")
     ctx, _ = context(env, [session(og_output(thesis="Beats 92.5%, captures 3.7%, degrades by 40%."))])
     generate(ctx, ["prob-a"])
-    assert ctx.opportunities.load("OPP-0001")["warnings"]["unsupported_numbers"] == ["thesis: 92.5%", "thesis: 3.7%"]
+    assert ctx.stores.opportunities.load("OPP-0001")["warnings"]["unsupported_numbers"] == ["thesis: 92.5%", "thesis: 3.7%"]
 
 
 def test_derived_records_with_profile_quotes_are_git_ignored():
@@ -184,3 +184,16 @@ def test_derived_records_with_profile_quotes_are_git_ignored():
     for path in ("PersonalFitInvestigator/fits/prob-x.yaml", "OpportunityGenerator/opportunities/OPP-0001.yaml",
                  "OpportunityGenerator/briefs/OPP-0001.md", "personal_profile/cv.pdf"):
         assert subprocess.run(["git", "check-ignore", "-q", path], cwd=root).returncode == 0, path
+
+
+def test_checks_run_on_stores_alone_without_a_client(env):
+    from opportunitygenerator.run import OGStores, load_inputs
+    paths = OGPaths(env)
+    stores = OGStores.open(paths, load_config(paths.config))
+    problem_rec, fit_rec, nov, ev_rec = load_inputs(stores, "prob-a")
+    assert problem_rec["problem_id"] == "prob-a" and nov is not None and ev_rec is not None
+    with pytest.raises(RqdError, match="no fit for prob-nofit"):
+        load_inputs(stores, "prob-nofit")
+    ctx, _ = context(env, [session()])
+    generate(ctx, ["prob-a"])
+    assert stale_inputs(stores, stores.opportunities.load("OPP-0001")) == []

@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}Error{% endblock %}
+{% block content %}
+<div class="error-page">
+  <h1>{{ message }}</h1>
+  {% if fix %}<p class="fix"><strong>Fix:</strong> {{ fix }}</p>{% endif %}
+</div>
+{% endblock %}

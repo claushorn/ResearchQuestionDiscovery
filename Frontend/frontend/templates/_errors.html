@@ -1,0 +1,10 @@
+{% if errors %}
+<div class="errors" role="alert">
+  <h2>{{ errors|length }} record{{ 's' if errors|length != 1 }} could not be read; the others are shown</h2>
+  <ul>
+  {% for file, message, fix in errors %}
+    <li><code>{{ file }}</code>: {{ message }}<br><span class="small"><strong>Fix:</strong> {{ fix }}</span></li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}

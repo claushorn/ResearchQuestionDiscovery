@@ -43,6 +43,20 @@ def hold_lock(root: Path):
         yield
 
 
+def lock_held(root: Path) -> bool:
+    """Whether a command holds the run lock of this capability directory (probe and release; creates nothing)."""
+    lock_path = Path(root) / "data" / "run.lock"
+    if not lock_path.exists():
+        return False
+    with open(lock_path, "rb") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(lock, fcntl.LOCK_UN)
+        return False
+
+
 def exclusive(fn):
     """One mutating command per capability directory at a time (state, registry, API usage)."""
     @functools.wraps(fn)

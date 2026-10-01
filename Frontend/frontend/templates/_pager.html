@@ -1,0 +1,8 @@
+<div class="pager">
+  <span>{{ table.total }} row{{ 's' if table.total != 1 }}</span>
+  {% if table.pages > 1 %}
+    {% if table.page > 1 %}<a href="{{ qs(request, page=table.page - 1) }}">Previous</a>{% endif %}
+    <span>Page {{ table.page }} of {{ table.pages }}</span>
+    {% if table.page < table.pages %}<a href="{{ qs(request, page=table.page + 1) }}">Next</a>{% endif %}
+  {% endif %}
+</div>

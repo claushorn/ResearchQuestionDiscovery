@@ -16,6 +16,7 @@ TOOL_OUTPUT = [
     "PersonalFitInvestigator/data/transcripts/x.jsonl", "PersonalFitInvestigator/fits/prob-x.yaml",
     "OpportunityGenerator/data/transcripts/x.jsonl", "OpportunityGenerator/opportunities/OPP-0001.yaml",
     "OpportunityGenerator/briefs/OPP-0001.md", "personal_profile/cv.pdf",
+    "Frontend/data/frontend.db", "Frontend/data/tasks/1.log",
 ]
 
 
@@ -25,5 +26,5 @@ def test_tool_output_is_git_ignored(path):
 
 
 def test_tracked_config_is_not_ignored():
-    for path in ("SourceScout/registry.yaml", "SourceScout/sources.yaml", "ProblemExtractor/config.yaml"):
+    for path in ("SourceScout/registry.yaml", "SourceScout/sources.yaml", "ProblemExtractor/config.yaml", "Frontend/config.yaml"):
         assert subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT).returncode == 1, path

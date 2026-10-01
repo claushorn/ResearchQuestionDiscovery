@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Confirm {{ c.action.label }}{% endblock %}
+{% block content %}
+<h1>Run {{ c.action.label }}?</h1>
+<p class="lede">Runs <code>{{ c.action.script }} {{ c.action.command }}</code> on the items below as an Agent Task, exactly as on the command line.</p>
+<div class="confirm">
+  <dl class="kv">
+    <dt>Items to run</dt><dd><strong>{{ c.count }} item{{ 's' if c.count != 1 }}</strong>{% if c.refused %} ({{ c.refused|length }} refused){% endif %}</dd>
+    <dt>Budget cap per item</dt><dd>{% if c.cap_usd is not none %}${{ "%.2f"|format(c.cap_usd) }}{% else %}—{% endif %}{% if c.cap_note %} <span class="muted small">{{ c.cap_note }}</span>{% endif %}</dd>
+    <dt>Worst case</dt><dd>{% if c.worst_case_usd is not none %}<strong>${{ "%.2f"|format(c.worst_case_usd) }}</strong> <span class="muted small">({{ c.count }} × cap, list-price equivalent)</span>{% else %}—{% endif %}</dd>
+  </dl>
+  {% if c.refused %}
+  <h2>Refused by the stage ({{ c.refused|length }})</h2>
+  <ul>{% for r in c.refused %}<li><code>{{ r.id }}</code>: {{ r.message }}{% if r.fix %}<br><span class="small"><strong>Fix:</strong> {{ r.fix }}</span>{% endif %}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if c.existing %}
+  <h2>Already have a record ({{ c.existing|length }})</h2>
+  <p class="small muted">Running again replaces it (the stage keeps the previous version in the record's history).</p>
+  <p>{% for i in c.existing %}<code>{{ i }}</code> {% endfor %}</p>
+  {% endif %}
+  {% if c.force_option %}
+  <form method="post" action="/confirm" class="actions">
+    <input type="hidden" name="action" value="{{ c.action.key }}">
+    {% for i in c.ids %}<input type="hidden" name="ids" value="{{ i }}">{% endfor %}
+    <label><input type="checkbox" name="force" value="true" {% if c.force %}checked{% endif %} onchange="this.form.submit()"> Force: {{ c.force_option }}</label>
+  </form>
+  {% endif %}
+  <form method="post" action="/tasks/start" class="actions">
+    <input type="hidden" name="action" value="{{ c.action.key }}">
+    {% for i in c.ids %}<input type="hidden" name="ids" value="{{ i }}">{% endfor %}
+    {% if c.force %}<input type="hidden" name="force" value="true">{% endif %}
+    <button type="submit" class="primary" {% if busy or not c.count %}disabled{% endif %}>Start {{ c.action.label }} on {{ c.count }} item{{ 's' if c.count != 1 }}</button>
+    {% if busy %}<span class="chip warn">{{ busy }}</span>{% elif not c.count %}<span class="chip bad">nothing to run</span>{% endif %}
+    <a href="javascript:history.back()">Back</a>
+  </form>
+  <details><summary class="small muted">Selected ids ({{ c.ids|length }})</summary><p class="small">{% for i in c.ids %}<code>{{ i }}</code> {% endfor %}</p></details>
+</div>
+{% endblock %}

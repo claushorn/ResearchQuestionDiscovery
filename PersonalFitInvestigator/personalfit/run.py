@@ -32,18 +32,31 @@ class PFContext:
 
     @classmethod
     def open(cls, paths: PFPaths, cfg: PFConfig, client: ClaudeCodeClient, run_id: str | None = None) -> "PFContext":
-        def store(root: str, sub: str, required: bool = False) -> YamlStore:
-            d = (paths.root / root).resolve() / sub
-            if required and not d.is_dir():
-                raise ConfigError(f"directory not found: {d}", fix="Set the *_root paths in PersonalFitInvestigator/config.yaml")
-            return YamlStore(d)
         return cls(cfg, paths, load_profile((paths.root / cfg.profile_dir).resolve(), cfg.profile_max_chars),
-                   store(cfg.problemextractor_root, "problems", required=True),
-                   store(cfg.noveltyinvestigator_root, "investigations"), store(cfg.economicvalue_root, "assessments"),
+                   problems_store(paths, cfg), _store(paths, cfg.noveltyinvestigator_root, "investigations"),
+                   _store(paths, cfg.economicvalue_root, "assessments"),
                    YamlStore(paths.fits), client, run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
 
     def optional(self, store: YamlStore, problem_id: str) -> dict | None:
         return store.load(problem_id) if store.exists(problem_id) else None
+
+
+def _store(paths: PFPaths, root: str, sub: str, required: bool = False) -> YamlStore:
+    d = (paths.root / root).resolve() / sub
+    if required and not d.is_dir():
+        raise ConfigError(f"directory not found: {d}", fix="Set the *_root paths in PersonalFitInvestigator/config.yaml")
+    return YamlStore(d)
+
+
+def problems_store(paths: PFPaths, cfg: PFConfig) -> YamlStore:
+    return _store(paths, cfg.problemextractor_root, "problems", required=True)
+
+
+def refusal(problems: YamlStore, problem_id: str) -> RqdError | None:
+    """Pre-spend check of `assess` on the store alone: None = runnable, else the refusal (message and fix)."""
+    if not problems.exists(problem_id):
+        return RqdError(f"no problem {problem_id}", fix="See `uv run problemextractor list`")
+    return None
 
 
 def is_stale(fit: dict, problem: dict, profile: Profile) -> bool:
@@ -75,8 +88,8 @@ def assess_one(ctx: PFContext, problem_id: str) -> dict:
 def assess(ctx: PFContext, problem_ids: list[str]) -> dict[str, str]:
     """Fit per problem; returns {problem_id: error}. Every id is checked before any spend."""
     for pid in problem_ids:
-        if not ctx.problems.exists(pid):
-            raise RqdError(f"no problem {pid}", fix="See `uv run problemextractor list`")
+        if (refused := refusal(ctx.problems, pid)) is not None:
+            raise refused
 
     def one(pid: str) -> str:
         rec = assess_one(ctx, pid)

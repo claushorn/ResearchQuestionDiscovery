@@ -67,3 +67,16 @@ def test_model_knowledge_is_stored_labelled_next_to_document_facts():
     assert rec["failure"]["what_current_methods_cannot_do_inferred"].startswith("Guarantees")
     bare = PEOutput.model_validate(pe_output()).extracted()
     assert bare["current_state"]["known_solution_inferred"] == ""
+
+
+def test_payment_label_shows_the_type_with_what_was_stated():
+    from problemextractor.records import best_payment, payment_label
+    assert payment_label({"type": "company_investment", "stated": "tisix.io"}) == "company: tisix.io"
+    assert payment_label({"type": "grant", "stated": "$1.5M"}) == "grant: $1.5M"
+    assert payment_label({"type": "contract", "stated": ""}) == "contract"
+    assert payment_label({"type": "investor_thesis"}) == "investor thesis"
+    assert payment_label({"type": "none_stated", "stated": ""}) == "-"
+    src = lambda t, s: {"payment_signal": {"type": t, "stated": s}}
+    assert best_payment({"sources": [src("contract", ""), src("prize", "$50k")]}) == "prize: $50k"  # stated first
+    assert best_payment({"sources": [src("none_stated", ""), src("hiring", "")]}) == "hiring"
+    assert best_payment({"sources": [src("none_stated", "")]}) == "-"

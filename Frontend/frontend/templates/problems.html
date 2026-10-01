@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Problems{% endblock %}
+{% block content %}
+<h1>Problems</h1>
+<p class="lede">One row per problem, with how far it has come through the pipeline: novelty, economic value, fit and opportunity.</p>
+{% with errors=table.errors %}{% include "_errors.html" %}{% endwith %}
+<form class="filters" method="get">
+  <label>Search <input type="search" name="q" value="{{ filters.get('q', '') }}" placeholder="id or statement"></label>
+  {% with name="novelty", label="Novelty", options=[("likely_open","likely open"),("partially_solved","partially solved"),("solved","solved"),("unclear","unclear")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="has_fit", label="Fit", options=[("yes","has fit"),("no","no fit")] %}{% include "_select.html" %}{% endwith %}
+  <label>Fit ≥ <input type="text" name="fit_min" value="{{ filters.get('fit_min', '') }}" size="2" inputmode="numeric"></label>
+  {% with name="waiting", label="Waiting for", options=[("novelty","novelty"),("economic value","economic value"),("fit","fit"),("opportunity","opportunity")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="stale", label="Stale", options=[("yes","stale"),("no","up to date")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="tier", label="Best tier", options=[("A","A"),("B","B"),("C","C"),("D","D"),("E","E")] %}{% include "_select.html" %}{% endwith %}
+  {% include "_triage_filter.html" %}
+  <label>Sort
+    <select name="sort" onchange="this.form.submit()">
+      {% for s in sorts %}<option value="{{ s }}" {% if s == sort %}selected{% endif %}>{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <button type="submit">Filter</button>
+</form>
+{% include "_actions.html" %}
+<table class="data">
+  <thead><tr><th class="sel"></th><th>Problem</th><th class="num">Sources</th><th>Payment</th><th>Novelty</th><th>Value / year</th><th class="num">Fit</th><th>Opportunity</th><th>Status</th><th>Triage</th></tr></thead>
+  <tbody>
+  {% for r in table.rows %}
+    <tr>
+      <td class="sel"><input type="checkbox" name="ids" value="{{ r.problem_id }}" form="selection" aria-label="select {{ r.problem_id }}"></td>
+      <td class="statement"><a href="/problems/{{ r.problem_id }}"><span class="clamp" title="{{ r.statement }}">{{ r.statement }}</span></a><br><span class="muted small">{{ r.problem_id }}</span></td>
+      <td class="num">{{ r.n_sources }} <span class="muted">{{ r.best_tier }}</span></td>
+      <td>{{ r.payment }}{% if r.due_passed %} <span class="chip bad">due passed</span>{% endif %}</td>
+      <td>{% if r.novelty %}<span class="chip {{ 'ok' if r.novelty == 'likely_open' else 'bad' if r.novelty == 'solved' else '' }}">{{ r.novelty }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.value is none %}<span class="muted">—</span>{% elif r.value == "unknown" %}unknown{% else %}{{ r.value[0]|money }}–{{ r.value[1]|money }}{% if r.value_status == "assumption_only" %} <span class="chip warn">assumption</span>{% endif %}{% endif %}</td>
+      <td class="num">{% if r.fit is not none %}<strong>{{ r.fit }}</strong>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% if r.opp_id %}<a href="/opportunities/{{ r.opp_id }}/brief">{{ r.opp_id }}</a> <span class="chip {{ 'accent' if r.recommendation == 'investigate' else '' }}">{{ r.recommendation }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+      <td>{% for s in r.stale %}<span class="chip warn">stale {{ s }}</span> {% endfor %}{% for w in r.waiting %}<span class="chip">needs {{ w }}</span> {% endfor %}</td>
+      <td>{% with kind="problem", item_id=r.problem_id, t=r.triage %}{% include "triage.html" %}{% endwith %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="10" class="muted">No problems match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}

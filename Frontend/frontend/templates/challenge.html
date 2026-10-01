@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import evidence %}
+{% block title %}{{ c.item.title }}{% endblock %}
+{% block content %}
+{% set r = c.record %}
+<p class="small"><a href="/challenges">Challenges</a></p>
+<h1>{{ c.item.title }}</h1>
+<p class="muted small">{{ c.item.source_id }}, <a href="{{ c.item.url }}" target="_blank" rel="noopener">{{ c.item.url }}</a>, {{ c.item.item_id }}</p>
+<div class="actions">{% with kind="challenge", item_id=c.item.item_id %}{% include "triage.html" %}{% endwith %}</div>
+<form id="selection" class="actions" method="post" action="/confirm">
+  <input type="hidden" name="ids" value="{{ c.item.item_id }}">
+  {% for a in actions %}<button type="submit" name="action" value="{{ a.key }}" {% if busy %}disabled title="{{ busy }}"{% endif %}>Run {{ a.label }}</button>{% endfor %}
+</form>
+
+<section class="block">
+<h2>Headroom</h2>
+{% if r %}
+{% set h = r.headroom %}
+<dl class="kv">
+  <dt>Verdict</dt><dd><span class="chip {{ 'ok' if h.verdict == 'open' else 'bad' if h.verdict == 'solved' else '' }}">{{ h.verdict }}</span>
+    {% if h.normalized_headroom is not none %}{{ (h.normalized_headroom * 100)|round|int }}% headroom (threshold {{ h.threshold }}){% endif %}</dd>
+  <dt>Metric</dt><dd>{{ h.metric or "—" }} {% if h.direction %}<span class="muted">({{ h.direction|replace("_", " ") }})</span>{% endif %}</dd>
+  {% for k in ("winner", "ceiling", "baseline") %}<dt>{{ k|capitalize }}</dt><dd>{{ h[k].value if h[k] else "—" }}</dd>{% endfor %}
+  {% if h.warnings %}<dt>Warnings</dt><dd>{% for w in h.warnings %}<span class="chip warn">{{ w }}</span> {% endfor %}</dd>{% endif %}
+</dl>
+{% if h.leaderboard and h.leaderboard.top %}
+<h3 class="small muted">Leaderboard top</h3>
+<table class="data"><thead><tr><th>Team</th><th class="num">Score</th></tr></thead><tbody>
+{% for row in h.leaderboard.top %}<tr><td>{{ row.team }}</td><td class="num">{{ row.score }}</td></tr>{% endfor %}
+</tbody></table>
+{% endif %}
+{% else %}<p class="muted">Not checked yet. Run <em>headroom</em> on it.</p>{% endif %}
+</section>
+
+<section class="block">
+<h2>Investigation</h2>
+{% set inv = r.investigation if r else none %}
+{% if inv %}
+<p>{{ inv.summary }}</p>
+{% if inv.forced %}<p><span class="chip warn">investigated although the headroom check found it solved</span></p>{% endif %}
+<h3 class="small muted">Winning solutions</h3>
+<ul>{% for s in inv.solutions %}<li><strong>{{ s.team }}</strong>: {{ s.title }}{% if s.score is not none %} <span class="muted">({{ s.score }})</span>{% endif %}<br>{{ s.approach }}</li>{% else %}<li class="muted">none kept</li>{% endfor %}</ul>
+<h3 class="small muted">Ideas</h3>
+<ul>{% for i in inv.ideas %}<li><strong>{{ i.idea }}</strong><br><span class="small">Builds on: {{ i.builds_on }}. Why it could win: {{ i.why_it_could_win }}. Risks: {{ i.risks }}</span></li>{% endfor %}</ul>
+<h3 class="small muted">Evidence</h3>
+{{ evidence(inv.evidence) }}
+{% else %}<p class="muted">Not investigated yet.</p>{% endif %}
+</section>
+{% endblock %}

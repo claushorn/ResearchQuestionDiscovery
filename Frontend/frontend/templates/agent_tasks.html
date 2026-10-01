@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Agent Tasks{% endblock %}
+{% block content %}
+<h1>Agent Tasks</h1>
+<p class="lede">Every stage run started from here: one task at a time, each the stage's own command.</p>
+<table class="data">
+  <thead><tr><th class="num">Task</th><th>Stage</th><th class="num">Items</th><th>Started</th><th>Ended</th><th>Status</th><th>Results</th></tr></thead>
+  <tbody>
+  {% for t in tasks %}
+    {% set failed = t["items"]|selectattr("state", "equalto", "failed")|list|length %}
+    {% set done = t["items"]|selectattr("state", "equalto", "done")|list|length %}
+    <tr>
+      <td class="num"><a href="/tasks/{{ t.id }}">#{{ t.id }}</a></td>
+      <td>{{ t.label }}{% if t.force %} <span class="chip warn">forced</span>{% endif %}</td>
+      <td class="num">{{ t.ids|length }}{% if t.refused %} <span class="muted small">+{{ t.refused|length }} refused</span>{% endif %}</td>
+      <td>{{ t.started[:16]|replace("T", " ") }}</td>
+      <td>{{ (t.ended or "")[:16]|replace("T", " ") }}</td>
+      <td>{% with s=t.status %}{% include "_task_status.html" %}{% endwith %}</td>
+      <td>{{ done }} done{% if failed %}, <span class="chip bad">{{ failed }} failed</span>{% endif %}{% if t.error %} <span class="muted">{{ t.error[0] }}</span>{% endif %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7" class="muted">No Agent Tasks yet. Select rows on a page and press Run.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

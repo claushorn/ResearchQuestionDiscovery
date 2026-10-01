@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Challenges{% endblock %}
+{% block content %}
+<h1>Challenges</h1>
+<p class="lede">Finished challenges from SourceScout: how much headroom the winner left, and what the winners did.</p>
+{% with errors=table.errors %}{% include "_errors.html" %}{% endwith %}
+<form class="filters" method="get">
+  <label>Search <input type="search" name="q" value="{{ filters.get('q', '') }}" placeholder="id or title"></label>
+  {% with name="checked", label="Headroom", options=[("yes","checked"),("no","not checked")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="verdict", label="Verdict", options=[("open","open"),("solved","solved"),("unclear","unclear"),("not_applicable","not applicable")] %}{% include "_select.html" %}{% endwith %}
+  {% with name="investigated", label="Investigated", options=[("yes","yes"),("no","no")] %}{% include "_select.html" %}{% endwith %}
+  {% include "_triage_filter.html" %}
+  <button type="submit">Filter</button>
+</form>
+{% include "_actions.html" %}
+<table class="data">
+  <thead><tr><th class="sel"></th><th>Challenge</th><th>Headroom</th><th>Winner</th><th>Investigated</th><th>Triage</th></tr></thead>
+  <tbody>
+  {% for r in table.rows %}
+    <tr>
+      <td class="sel"><input type="checkbox" name="ids" value="{{ r.item_id }}" form="selection" aria-label="select {{ r.item_id }}"></td>
+      <td class="statement"><a href="/challenges/{{ r.item_id }}"><span class="clamp" title="{{ r.title }}">{{ r.title }}</span></a><br><span class="muted small">{{ r.source_id }}, <a href="{{ r.url }}" target="_blank" rel="noopener">page</a></span></td>
+      <td>{% if r.verdict %}<span class="chip {{ 'ok' if r.verdict == 'open' else 'bad' if r.verdict == 'solved' else '' }}">{{ r.headline }}</span>{% else %}<span class="chip">not checked</span>{% endif %}</td>
+      <td>{{ r.winner or "—" }}</td>
+      <td>{{ "yes" if r.investigated else "no" }}</td>
+      <td>{% with kind="challenge", item_id=r.item_id, t=r.triage %}{% include "triage.html" %}{% endwith %}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="6" class="muted">No finished challenges match these filters.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% include "_pager.html" %}
+{% endblock %}

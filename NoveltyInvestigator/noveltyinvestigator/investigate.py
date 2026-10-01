@@ -33,9 +33,19 @@ class NIContext:
     @classmethod
     def open(cls, paths: NIPaths, cfg: NIConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "NIContext":
-        problems = YamlStore((paths.root / cfg.problemextractor_root).resolve() / "problems")
-        return cls(cfg, paths, problems, YamlStore(paths.investigations), client, fetcher,
+        return cls(cfg, paths, problems_store(paths, cfg), YamlStore(paths.investigations), client, fetcher,
                    run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
+
+
+def problems_store(paths: NIPaths, cfg: NIConfig) -> YamlStore:
+    return YamlStore((paths.root / cfg.problemextractor_root).resolve() / "problems")
+
+
+def refusal(problems: YamlStore, problem_id: str) -> RqdError | None:
+    """Pre-spend check of `investigate` on the store alone: None = runnable, else the refusal (message and fix)."""
+    if not problems.exists(problem_id):
+        return RqdError(f"no problem {problem_id}", fix="See `uv run problemextractor list`")
+    return None
 
 
 def investigate_one(ctx: NIContext, problem_id: str) -> dict:
@@ -74,8 +84,9 @@ def investigate_one(ctx: NIContext, problem_id: str) -> dict:
 def investigate(ctx: NIContext, problem_ids: list[str]) -> dict[str, str]:
     """Investigate each problem; returns {problem_id: error} for the ones that failed. Auth/usage limits stop the whole command."""
     for pid in problem_ids:
-        if not ctx.problems.exists(pid):
-            raise RqdError(f"no problem {pid}", fix="See `uv run problemextractor list`")
+        if (refused := refusal(ctx.problems, pid)) is not None:
+            raise refused
+
     def one(pid: str) -> str:
         rec = investigate_one(ctx, pid)
         verified = sum(w["verification"] == "verified" for w in rec["closest_work"])
