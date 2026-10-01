@@ -36,7 +36,28 @@ def qs(request: Request, **changes) -> str:
     return "?" + urlencode({k: v for k, v in params.items() if v not in (None, "")})
 
 
-def create_app(root: Path) -> FastAPI:
+SAFE_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
+def refusal(request: Request, port: int) -> str | None:
+    """Why a request does not come from this machine's own pages, or None. A foreign Host is DNS rebinding (another
+    site resolving its name to 127.0.0.1); a state-changing request from another origin is CSRF (any website could
+    start a paid Agent Task)."""
+    own = (f"127.0.0.1:{port}", f"localhost:{port}")
+    host = request.headers.get("host", "")
+    if host not in own:
+        return f"request for host {host!r}: this app answers only http://127.0.0.1:{port}/"
+    if request.method not in SAFE_METHODS:
+        origin, site = request.headers.get("origin"), request.headers.get("sec-fetch-site")
+        if origin is not None and origin not in tuple(f"http://{h}" for h in own):
+            return f"{request.method} from another site ({origin}) refused"
+        if site is not None and site != "same-origin":
+            return f"{request.method} from another site (Sec-Fetch-Site: {site}) refused"
+    return None
+
+
+def create_app(root: Path, port: int | None = None) -> FastAPI:
+    """`port`: the port served (default: config.yaml's); only requests for 127.0.0.1 / localhost on it are answered."""
     app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
     templates = Jinja2Templates(directory=HERE / "templates")
@@ -68,6 +89,19 @@ def create_app(root: Path) -> FastAPI:
 
     def render(request: Request, name: str, **context):
         return templates.TemplateResponse(request, name, {"busy": tasks().busy(), **context})
+
+    @app.middleware("http")
+    async def local_only(request: Request, call_next):
+        try:
+            reason = refusal(request, port if port is not None else load_config(root / "config.yaml").port)
+        except RqdError as e:
+            return templates.TemplateResponse(request, "error.html", {"message": str(e), "fix": e.fix}, status_code=500)
+        if reason:
+            return templates.TemplateResponse(request, "error.html", {
+                "message": reason, "fix": f"Open the frontend from this machine's own pages "
+                                          f"(the address `uv run frontend` opened); other sites cannot use it"},
+                status_code=403)
+        return await call_next(request)
 
     @app.exception_handler(RqdError)
     async def rqd_error(request: Request, exc: RqdError):

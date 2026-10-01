@@ -3,9 +3,8 @@ shows the new fit score."""
 import re
 import time
 
-from fastapi.testclient import TestClient
 
-from fe_testing import fake_cli, seed
+from fe_testing import fake_cli, fe_client, seed
 
 FIT_RECORD = ('{"problem_id": i, "revision": 1, "problem_revision": 1, "profile_digest": "d", "advantages": [], '
               '"gaps": [], "personal_advantage": {"score": 6, "confidence": 0.5, "reasoning": "r"}, "warnings": []}')
@@ -20,7 +19,7 @@ def test_select_confirm_run_and_see_the_new_fit(tmp_path, monkeypatch):
     env = seed(tmp_path)
     fake_cli(tmp_path / "bin", "fit", "fit", "fits", FIT_RECORD)
     monkeypatch.setattr(app_module, "BIN_DIR", tmp_path / "bin")
-    client = TestClient(app_module.create_app(env["root"]))
+    client = fe_client(env["root"])
     page = client.get("/problems").text
     assert 'value="fit"' in page and "<strong>6</strong>" not in row(page, "prob-c")
     confirm = client.post("/confirm", data={"action": "fit", "ids": ["prob-c"]}).text

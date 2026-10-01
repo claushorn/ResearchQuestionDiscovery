@@ -1,16 +1,14 @@
 import pytest
 import yaml
-from fastapi.testclient import TestClient
 
-from fe_testing import seed
-from frontend.app import create_app
+from fe_testing import fe_client, seed
 from rqd.records import YamlStore
 
 
 @pytest.fixture
 def env(tmp_path):
     s = seed(tmp_path)
-    s["client"] = TestClient(create_app(s["root"]), raise_server_exceptions=False)
+    s["client"] = fe_client(s["root"], raise_server_exceptions=False)
     return s
 
 

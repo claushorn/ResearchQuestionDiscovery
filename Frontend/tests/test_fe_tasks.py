@@ -2,13 +2,11 @@ import os
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
 from challengeinvestigator.run import refusal
 from economicvalue.assess import gate
-from fe_testing import fake_cli, seed
+from fe_testing import fake_cli, fe_client, seed
 from frontend.actions import ACTIONS, confirm
-from frontend.app import create_app
 from frontend.config import load_config
 from frontend.tasks import TaskRunner
 from opportunitygenerator.config import OGPaths, load_config as og_config
@@ -91,7 +89,7 @@ def test_a_held_lock_makes_it_busy_and_start_is_refused(env):
         assert reason and "EconomicValueInvestigator" in reason and "outside" in reason
         with pytest.raises(RqdError, match="busy"):
             runner.start("fit", ["prob-a"], force=False)
-        client = TestClient(create_app(env["root"]))
+        client = fe_client(env["root"])
         html = client.get("/problems").text
         assert "disabled" in html and "outside" in html
         assert "outside the frontend is running on EconomicValueInvestigator" in client.get("/").text
@@ -166,7 +164,7 @@ def test_start_runs_only_runnable_ids(env):
 def test_routes_confirm_start_panel_and_agent_tasks_page(env, monkeypatch):
     import frontend.app as app_module
     monkeypatch.setattr(app_module, "BIN_DIR", env["bin"])
-    client = TestClient(create_app(env["root"]))
+    client = fe_client(env["root"])
     html = client.post("/confirm", data={"action": "fit", "ids": ["prob-a", "prob-c"]}).text
     assert "2 items" in html and "$1.50" in html and "$3.00" in html and 'action="/tasks/start"' in html
     res = client.post("/tasks/start", data={"action": "fit", "ids": ["prob-a", "prob-c"]}, follow_redirects=False)
@@ -188,7 +186,7 @@ def test_routes_confirm_start_panel_and_agent_tasks_page(env, monkeypatch):
 def test_panel_reloads_the_page_when_items_finished_since_the_last_poll(env, monkeypatch):
     import frontend.app as app_module
     monkeypatch.setattr(app_module, "BIN_DIR", env["bin"])
-    client = TestClient(create_app(env["root"]))
+    client = fe_client(env["root"])
     res = client.post("/tasks/start", data={"action": "fit", "ids": ["prob-a"]}, follow_redirects=False)
     tid = int(res.headers["location"].rsplit("/", 1)[1])
     wait(TaskRunner(env["root"] / "data", env["roots"], bin_dir=env["bin"]), tid)

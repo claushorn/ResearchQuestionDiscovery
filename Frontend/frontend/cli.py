@@ -23,4 +23,4 @@ def main(root: Path = typer.Option(DEFAULT_ROOT, "--root", help="Frontend direct
     port = port or cfg.port
     if not no_browser:
         threading.Timer(1.0, webbrowser.open, args=[f"http://{cfg.host}:{port}/"]).start()
-    uvicorn.run(create_app(root), host=cfg.host, port=port)
+    uvicorn.run(create_app(root, port), host=cfg.host, port=port)

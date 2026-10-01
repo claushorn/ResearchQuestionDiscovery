@@ -1,17 +1,15 @@
 import shutil
 
-from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
-from fe_testing import make_frontend, seed
+from fe_testing import fe_client, make_frontend, seed
 from frontend import cli
-from frontend.app import create_app
 
 NAV = ["Overview", "Candidates", "Problems", "Opportunities", "Challenges", "Agent Tasks"]
 
 
 def test_overview_serves_the_nav(tmp_path):
-    res = TestClient(create_app(seed(tmp_path)["root"])).get("/")
+    res = fe_client(seed(tmp_path)["root"]).get("/")
     assert res.status_code == 200
     for label in NAV:
         assert f">{label}</a>" in res.text
@@ -35,7 +33,7 @@ def test_config_cannot_bind_elsewhere(tmp_path):
 def test_missing_stage_directory_is_a_clean_configuration_error_page(tmp_path):
     root = make_frontend(tmp_path)
     shutil.rmtree(tmp_path / "PersonalFitInvestigator")
-    res = TestClient(create_app(root), raise_server_exceptions=False).get("/")
+    res = fe_client(root, raise_server_exceptions=False).get("/")
     assert res.status_code == 500
     assert "PersonalFitInvestigator" in res.text and "roots.personalfit" in res.text
     assert "Traceback" not in res.text and ">Overview</a>" in res.text

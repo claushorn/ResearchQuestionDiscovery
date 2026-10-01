@@ -192,3 +192,10 @@ def fake_cli(bin_dir: Path, name: str = "fit", tag: str = "fit", store: str = "f
     path.write_text(FAKE_CLI.format(python=sys.executable, tag=tag, store=store, record=record), encoding="utf-8")
     os.chmod(path, 0o755)
     return path
+
+
+def fe_client(root: Path, port: int = 8765, **kw):
+    """A TestClient that talks to the app as the browser does: Host 127.0.0.1:<port>."""
+    from fastapi.testclient import TestClient
+    from frontend.app import create_app
+    return TestClient(create_app(root), base_url=f"http://127.0.0.1:{port}", **kw)

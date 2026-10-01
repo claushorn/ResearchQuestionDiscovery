@@ -1,11 +1,9 @@
 import hashlib
 
 import pytest
-from fastapi.testclient import TestClient
 
-from fe_testing import seed
+from fe_testing import fe_client, seed
 from frontend import views
-from frontend.app import create_app
 from frontend.config import load_config
 from frontend.db import Triage
 
@@ -63,7 +61,7 @@ def _hashes(tmp_path):
 
 def test_triage_route_returns_the_control_and_leaves_stage_records_untouched(env, tmp_path):
     before = _hashes(tmp_path)
-    client = TestClient(create_app(env["root"]))
+    client = fe_client(env["root"])
     res = client.post("/triage/problem/prob-a", data={"status": "shortlist", "note": "strong fit"})
     assert res.status_code == 200 and 'class="triage"' in res.text and "strong fit" in res.text
     assert "on shortlist" in res.text
