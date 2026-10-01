@@ -38,11 +38,16 @@ class CIContext:
     @classmethod
     def open(cls, paths: CIPaths, cfg: CIConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "CIContext":
-        db = (paths.root / cfg.sourcescout_root).resolve() / "data" / "scout.db"
-        if not db.exists():
-            raise ConfigError(f"SourceScout store not found at {db}", fix="Set sourcescout_root in ChallengeInvestigator/config.yaml")
-        return cls(cfg, paths, Store(db), YamlStore(paths.challenges), client, fetcher,
+        return cls(cfg, paths, scout_store(paths, cfg), YamlStore(paths.challenges), client, fetcher,
                    run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
+
+
+def scout_store(paths: CIPaths, cfg: CIConfig) -> Store:
+    """SourceScout's store (read-only use): finished challenges come from it."""
+    db = (paths.root / cfg.sourcescout_root).resolve() / "data" / "scout.db"
+    if not db.exists():
+        raise ConfigError(f"SourceScout store not found at {db}", fix="Set sourcescout_root in ChallengeInvestigator/config.yaml")
+    return Store(db)
 
 
 def _not_finished(item_id: str) -> RqdError:

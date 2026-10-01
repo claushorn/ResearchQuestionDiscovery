@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Agent Task #{{ t.id }}{% endblock %}
+{% block content %}
+<p class="small"><a href="/tasks">Agent Tasks</a></p>
+<h1>Agent Task #{{ t.id }}: {{ t.label }} {% with s=t.status %}{% include "_task_status.html" %}{% endwith %}</h1>
+<p class="muted small">Started {{ t.started }}{% if t.ended %}, ended {{ t.ended }}{% endif %}{% if t.exit_code is not none %}, exit code {{ t.exit_code }}{% endif %}</p>
+<p><code class="small">{{ t.argv|join(" ") }}</code></p>
+{% if t.status == "running" %}
+<form method="post" action="/tasks/{{ t.id }}/cancel" class="actions"><button type="submit">Cancel this task</button>
+  <span class="muted small">Items already finished keep their records; the item in progress is not written.</span></form>
+{% endif %}
+{% if t.error %}
+<div class="error-page"><strong>{{ t.error[0] }}</strong>{% if t.error[1] %}<p class="fix"><strong>Fix:</strong> {{ t.error[1] }}</p>{% endif %}</div>
+{% endif %}
+<h2>Items</h2>
+<table class="data">
+  <thead><tr><th>Item</th><th>State</th><th>Result</th></tr></thead>
+  <tbody>
+  {% set seen = t["items"]|map(attribute="id")|list %}
+  {% for i in t["items"] %}
+    <tr><td><code>{{ i.id }}</code></td><td>{% with s=i.state %}{% include "_task_status.html" %}{% endwith %}</td><td>{{ i.result }}</td></tr>
+  {% endfor %}
+  {% for i in t.ids if i not in seen %}
+    <tr><td><code>{{ i }}</code></td><td><span class="chip">{{ "queued" if t.status == "running" else "not run" }}</span></td><td></td></tr>
+  {% endfor %}
+  {% for r in t.refused %}
+    <tr><td><code>{{ r.id }}</code></td><td><span class="chip bad">refused</span></td><td>{{ r.message }}{% if r.fix %} <span class="muted small">Fix: {{ r.fix }}</span>{% endif %}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<h2>Command output <a class="small" href="/tasks/{{ t.id }}/log">(raw)</a></h2>
+<pre class="brief" style="font-family: ui-monospace, Menlo, monospace; font-size: 0.82rem; max-height: 30rem; overflow: auto">{{ t.log[-20000:] }}</pre>
+{% endblock %}

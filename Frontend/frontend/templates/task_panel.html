@@ -1,0 +1,16 @@
+{# always-visible Agent Task bar; polls every second while the latest task runs #}
+{% if t %}
+{% set finished = t["items"]|selectattr("state", "ne", "running")|list|length %}
+{% set failed = t["items"]|selectattr("state", "equalto", "failed")|list|length %}
+<div class="bar" {% if t.status == "running" %}hx-get="/tasks/panel?tid={{ t.id }}&seen={{ finished }}" hx-trigger="every 1s" hx-target="#task-panel"{% endif %}>
+  <span class="dot {{ 'running' if t.status == 'running' else 'failed' if t.status in ('failed', 'cancelled', 'interrupted') else 'done' }}"></span>
+  <a href="/tasks/{{ t.id }}">Agent Task #{{ t.id }}</a>
+  <span>{{ t.label }}: {{ finished }}/{{ t.ids|length }} items{% if failed %}, {{ failed }} failed{% endif %}</span>
+  <span>{{ t.status }}</span>
+  {% if t.status == "running" %}
+    {% set current = t["items"]|selectattr("state", "equalto", "running")|list %}
+    {% if current %}<span class="muted">running {{ current[0].id }}</span>{% endif %}
+    <form method="post" action="/tasks/{{ t.id }}/cancel" style="margin-left:auto"><button type="submit">Cancel</button></form>
+  {% elif t.error %}<span>{{ t.error[0] }}</span>{% endif %}
+</div>
+{% endif %}

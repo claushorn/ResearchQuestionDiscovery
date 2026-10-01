@@ -4,6 +4,7 @@ import logging
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Callable
 
 import anthropic
 import yaml
@@ -129,6 +130,18 @@ def read_candidates(ss_root: Path) -> tuple[list[dict], list[tuple[Path, Excepti
     return out, unreadable
 
 
+def check_candidate_ids(candidate_ids: list[str], known: set[str], is_processed: Callable[[str], bool],
+                        ss_root: Path) -> None:
+    """`run --candidate`: every id must be a readable candidate file and not processed yet (else RqdError)."""
+    unknown = [cid for cid in candidate_ids if cid not in known]
+    if unknown:
+        raise RqdError(f"unknown candidate {', '.join(unknown)}",
+                       fix=f"Use candidate ids from {ss_root / 'output'} (cand-*.yaml)")
+    done = [cid for cid in candidate_ids if is_processed(cid)]
+    if done:
+        raise RqdError(f"candidate already processed: {', '.join(done)}", fix="Drop it from --candidate")
+
+
 def new_candidates(ctx: PEContext, categories: list[str] | None = None,
                    candidate_ids: list[str] | None = None) -> list[dict]:
     """Unprocessed SourceScout candidates (of the given source categories, if any), tier A first, oldest first
@@ -148,13 +161,7 @@ def new_candidates(ctx: PEContext, categories: list[str] | None = None,
         if not ctx.state.is_processed(c["candidate_id"]) and (not categories or c["source"].get("category") in categories):
             out.append(((c["source"]["tier"], c["extracted_with"]["at"], c["candidate_id"]), c))
     if candidate_ids:
-        unknown = [cid for cid in candidate_ids if cid not in by_id]
-        if unknown:
-            raise RqdError(f"unknown candidate {', '.join(unknown)}",
-                           fix=f"Use candidate ids from {ctx.ss_root / 'output'} (cand-*.yaml)")
-        done = [cid for cid in candidate_ids if ctx.state.is_processed(cid)]
-        if done:
-            raise RqdError(f"candidate already processed: {', '.join(done)}", fix="Drop it from --candidate")
+        check_candidate_ids(candidate_ids, set(by_id), ctx.state.is_processed, ctx.ss_root)
         return [by_id[cid] for cid in candidate_ids]
     return [c for _, c in sorted(out, key=lambda kc: kc[0])]
 

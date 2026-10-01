@@ -36,8 +36,7 @@ class EVContext:
     @classmethod
     def open(cls, paths: EVPaths, cfg: EVConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "EVContext":
-        return cls(cfg, paths, problems_store(paths, cfg),
-                   YamlStore((paths.root / cfg.noveltyinvestigator_root).resolve() / "investigations"),
+        return cls(cfg, paths, problems_store(paths, cfg), investigations_store(paths, cfg),
                    YamlStore(paths.assessments), client, fetcher, run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
 
 
@@ -47,6 +46,10 @@ def problems_store(paths: EVPaths, cfg: EVConfig) -> YamlStore:
         raise ConfigError(f"problems directory not found: {directory}",
                           fix="Set problemextractor_root in EconomicValueInvestigator/config.yaml")
     return YamlStore(directory)
+
+
+def investigations_store(paths: EVPaths, cfg: EVConfig) -> YamlStore:
+    return YamlStore((paths.root / cfg.noveltyinvestigator_root).resolve() / "investigations")
 
 
 def gate(problems: YamlStore, investigations: YamlStore, problem_id: str, force: bool) -> str:

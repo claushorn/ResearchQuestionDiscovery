@@ -147,3 +147,48 @@ def seed(tmp: Path) -> dict:
          "investigation": None, "history": []}, checked)
     return {"root": root, "candidates": [c["candidate_id"] for c in cands],
             "challenges": [item_id_for(u) for u in challenge_urls]}
+
+
+FAKE_CLI = '''#!{python}
+"""Fake stage CLI: `<name> --root R <command> ids... [--force]`, printing the stages' real progress format
+(rqd.investigation.run_each) to stderr while holding the stage's run lock, like the real CLIs. An id starting with
+`bad` fails, `slow` sleeps after its running line, `err` makes the whole command a clean error."""
+import sys, time
+from pathlib import Path
+from rqd.cli import hold_lock
+from rqd.records import YamlStore
+args = sys.argv[1:]
+root = Path(args[args.index("--root") + 1])
+rest = [a for a in args[args.index("--root") + 2:] if a != "--force"]
+command, ids = rest[0], rest[1:]
+with hold_lock(root):
+    if any(i.startswith("err") for i in ids):
+        print("ERROR: the usage limit is reached", file=sys.stderr)
+        print("Fix: Wait for the limit to reset", file=sys.stderr)
+        sys.exit(1)
+    failed = 0
+    for n, i in enumerate(ids, 1):
+        print(f"12:00:00 [{tag} {{n}}/{{len(ids)}}] {{i}}: running (budget $1.50) ...", file=sys.stderr, flush=True)
+        if i.startswith("slow"):
+            time.sleep(30)
+        if i.startswith("bad"):
+            failed += 1
+            print(f"12:00:01 [{tag} {{n}}/{{len(ids)}}] {{i}} -> FAILED budget exceeded", file=sys.stderr, flush=True)
+            continue
+        YamlStore(root / "{store}").save({record}, i)
+        print(f"12:00:01 [{tag} {{n}}/{{len(ids)}}] {{i}} -> advantage 7/10, 1 advantages, 0 warnings (1s)",
+              file=sys.stderr, flush=True)
+    sys.exit(1 if failed else 0)
+'''
+
+
+def fake_cli(bin_dir: Path, name: str = "fit", tag: str = "fit", store: str = "fits",
+             record: str = '{"problem_id": i, "revision": 1, "fake": True}') -> Path:
+    """An executable fake console script `bin_dir/name` (run with this venv's Python)."""
+    import os
+    import sys
+    bin_dir.mkdir(parents=True, exist_ok=True)
+    path = bin_dir / name
+    path.write_text(FAKE_CLI.format(python=sys.executable, tag=tag, store=store, record=record), encoding="utf-8")
+    os.chmod(path, 0o755)
+    return path

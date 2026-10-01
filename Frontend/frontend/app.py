@@ -1,23 +1,26 @@
 """FastAPI app: server-rendered pages over the stages' stores. Deliberate failures (RqdError) render as a page with
 the message and fix; never a traceback page."""
+import sys
 from html import escape
 from pathlib import Path
 from urllib.parse import urlencode
 
 from fastapi import FastAPI, Form, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from frontend import actions, views
 from frontend.config import FEConfig, load_config
 from frontend.db import Triage
+from frontend.tasks import TaskRunner
 from rqd.errors import RqdError
 
 HERE = Path(__file__).resolve().parent
 NAV = [("/", "Overview"), ("/candidates", "Candidates"), ("/problems", "Problems"),
        ("/opportunities", "Opportunities"), ("/challenges", "Challenges"), ("/tasks", "Agent Tasks")]
 PAGING = ("page", "sort")
+BIN_DIR = Path(sys.executable).parent  # the stages' console scripts live next to this venv's Python
 
 
 def money(x: float) -> str:
@@ -40,10 +43,20 @@ def create_app(root: Path) -> FastAPI:
     templates.env.globals.update(nav=NAV, qs=qs)
     templates.env.filters["money"] = money
     triage = Triage(root / "data" / "frontend.db")
+    runners: list[TaskRunner] = []
 
     def setup() -> tuple[FEConfig, dict[str, Path]]:
         cfg = load_config(root / "config.yaml")
         return cfg, cfg.stage_roots(root)
+
+    def tasks() -> TaskRunner:
+        """The one task runner (created on first use, so a configuration error shows as a page)."""
+        _, roots = setup()
+        if not runners:
+            runners.append(TaskRunner(root / "data", roots, bin_dir=BIN_DIR))
+            runners[0].reconcile()
+        runners[0].roots = roots
+        return runners[0]
 
     def query(request: Request) -> tuple[dict, int]:
         filters = {k: v for k, v in request.query_params.items() if k not in PAGING and v}
@@ -54,7 +67,7 @@ def create_app(root: Path) -> FastAPI:
         return filters, page
 
     def render(request: Request, name: str, **context):
-        return templates.TemplateResponse(request, name, context)
+        return templates.TemplateResponse(request, name, {"busy": tasks().busy(), **context})
 
     @app.exception_handler(RqdError)
     async def rqd_error(request: Request, exc: RqdError):
@@ -113,6 +126,44 @@ def create_app(root: Path) -> FastAPI:
         _, roots = setup()
         return render(request, "challenge.html", c=views.challenge(roots, item_id), actions=actions.for_page("challenges"),
                       t=triage.get_many("challenge", [item_id]).get(item_id))
+
+    @app.post("/confirm", response_class=HTMLResponse)
+    def confirm_run(request: Request, action: str = Form(""), ids: list[str] = Form(default=[]),
+                    force: bool = Form(False)):
+        _, roots = setup()
+        return render(request, "confirm.html", c=actions.confirm(roots, action, ids, force))
+
+    @app.post("/tasks/start")
+    def start(action: str = Form(""), ids: list[str] = Form(default=[]), force: bool = Form(False)):
+        tid = tasks().start(action, ids, force)
+        return RedirectResponse(f"/tasks/{tid}", status_code=303)
+
+    @app.get("/tasks", response_class=HTMLResponse)
+    def agent_tasks(request: Request):
+        return render(request, "agent_tasks.html", tasks=tasks().list())
+
+    @app.get("/tasks/panel", response_class=HTMLResponse)
+    def panel(request: Request, tid: int | None = None, seen: int | None = None):
+        latest = tasks().latest()
+        response = templates.TemplateResponse(request, "task_panel.html", {"t": latest})
+        finished = sum(i["state"] != "running" for i in latest["items"]) if latest else 0
+        page = (request.headers.get("HX-Current-URL") or "").split("?")[0]
+        if latest and latest["id"] == tid and seen is not None and finished > seen and not page.endswith("/confirm"):
+            response.headers["HX-Refresh"] = "true"  # new records: reload the page so the tables show them
+        return response
+
+    @app.get("/tasks/{tid}", response_class=HTMLResponse)
+    def task(request: Request, tid: int):
+        return render(request, "task.html", t=tasks().status(tid))
+
+    @app.get("/tasks/{tid}/log", response_class=PlainTextResponse)
+    def task_log(tid: int):
+        return tasks().status(tid)["log"]
+
+    @app.post("/tasks/{tid}/cancel")
+    def cancel(tid: int):
+        tasks().cancel(tid)
+        return RedirectResponse(f"/tasks/{tid}", status_code=303)
 
     @app.post("/triage/{kind}/{item_id}", response_class=HTMLResponse)
     def set_triage(request: Request, kind: str, item_id: str, status: str = Form(""), current: str = Form("none"),

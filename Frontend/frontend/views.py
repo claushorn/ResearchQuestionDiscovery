@@ -7,8 +7,8 @@ from pathlib import Path
 
 import yaml
 
-from challengeinvestigator.config import CIPaths
-from challengeinvestigator.run import _headline
+from challengeinvestigator.config import CIPaths, load_config as ci_config
+from challengeinvestigator.run import _headline, scout_store
 from economicvalue.config import EVPaths
 from noveltyinvestigator.config import NIPaths
 from opportunitygenerator.config import OGPaths, load_config as og_config
@@ -328,11 +328,10 @@ def brief(roots: dict[str, Path], opp_id: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def _scout_store(ss_root: Path) -> Store:
-    db = ss_root / "data" / "scout.db"
-    if not db.exists():
-        raise RqdError(f"SourceScout store not found at {db}", fix="Run `uv run sourcescout scan` first, or set roots.sourcescout")
-    return Store(db)
+def _scout_store(ci_root: Path) -> Store:
+    """SourceScout's store as ChallengeInvestigator finds it (its own config and loader)."""
+    paths = CIPaths(ci_root)
+    return scout_store(paths, ci_config(paths.config))
 
 
 def _read_challenge(r: dict) -> dict:
@@ -347,7 +346,7 @@ def challenges(roots: dict[str, Path], filters: dict, page: int, page_size: int,
     errors: list[Error] = []
     records = _index(CIPaths(roots["challengeinvestigator"]).challenges, _read_challenge, FIX_CHALLENGE, errors)
     rows = []
-    for item in _scout_store(roots["sourcescout"]).finished_items():
+    for item in _scout_store(roots["challengeinvestigator"]).finished_items():
         c = records.get(item.item_id, (None, None))[1]
         rows.append({"item_id": item.item_id, "title": item.title, "url": item.url, "source_id": item.source_id,
                      "verdict": c["verdict"] if c else None, "headline": c["headline"] if c else None,
@@ -363,7 +362,7 @@ def challenges(roots: dict[str, Path], filters: dict, page: int, page_size: int,
 
 
 def challenge(roots: dict[str, Path], item_id: str) -> dict:
-    item = _scout_store(roots["sourcescout"]).get(item_id)
+    item = _scout_store(roots["challengeinvestigator"]).get(item_id)
     if item is None or not item.finished:
         raise RqdError(f"{item_id} is not a finished challenge in the SourceScout store", fix="See the Challenges page")
     path = CIPaths(roots["challengeinvestigator"]).challenges / f"{item_id}.yaml"

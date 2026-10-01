@@ -17,6 +17,6 @@
 <main>
 {% block content %}{% endblock %}
 </main>
-<div id="task-panel">{% block task_panel %}{% endblock %}</div>
+<div id="task-panel" hx-get="/tasks/panel" hx-trigger="load"></div>
 </body>
 </html>

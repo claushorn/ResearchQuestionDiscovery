@@ -3,6 +3,7 @@
 {% block content %}
 <h1>Overview</h1>
 <p class="lede">What each stage holds, and what waits for the next stage.</p>
+{% if busy %}<p><span class="chip warn">Run is unavailable: {{ busy }}</span></p>{% endif %}
 {% include "_errors.html" %}
 <div class="stages">
 {% for s in stages %}
