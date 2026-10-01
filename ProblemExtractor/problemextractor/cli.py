@@ -26,14 +26,16 @@ def main(ctx: typer.Context, root: Path = typer.Option(DEFAULT_ROOT, "--root", h
 @app.command()
 @clean_errors
 @exclusive
-def run(ctx: typer.Context, limit: int = typer.Option(None, help="Max candidates to process")):
+def run(ctx: typer.Context, limit: int = typer.Option(None, help="Max candidates to process"),
+        category: list[str] = typer.Option(None, "--category",
+                                           help="Only these SourceScout source categories (repeatable), e.g. tech_blog")):
     """Turn new SourceScout candidates into problem records (tier A first)."""
     paths = PEPaths(ctx.obj)
     cfg = load_config(paths.config)
     pe = PEContext.open(paths, cfg)
     try:
         with hold_lock(pe.ss_root):  # SourceScout must not write its store/candidates while PE reads them
-            run_extraction(pe, make_client(cfg.extraction.backend), limit)
+            run_extraction(pe, make_client(cfg.extraction.backend), limit, category or None)
     finally:
         typer.echo(pe.report.render(cfg.extraction.token_budget))
         typer.echo(f"\nReport saved: {pe.report.save(paths.runs)}")
