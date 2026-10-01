@@ -43,7 +43,7 @@ def run_info(res: AgentResult, *, model: str, effort: str, transcript: str) -> d
             "input_tokens": sum(u.get(k, 0) for k in ("input_tokens", "cache_creation_input_tokens",
                                                        "cache_read_input_tokens")),
             "turns": res.num_turns, "duration_s": round(res.duration_s, 1), "at": iso(utcnow()),
-            "transcript": transcript, "answered_by": res.models_used or [model]}
+            "transcript": transcript, "answered_by": res.models_used or [model], "over_budget": res.over_budget}
 
 
 def with_history(store: YamlStore, record_id: str, record: dict, keep: tuple[str, ...]) -> dict:

@@ -1,5 +1,6 @@
 """Helpers for ProblemExtractor tests (unique module name: no conftest collisions across capabilities)."""
 import json
+import shutil
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -40,6 +41,7 @@ def seed(ss_root: Path, candidates: list[dict], text: str = ITEM_TEXT) -> None:
     store = Store(ss_root / "data" / "scout.db")
     out = ss_root / "output" / "2026-09"
     out.mkdir(parents=True, exist_ok=True)
+    shutil.copy(Path(__file__).resolve().parents[2] / "SourceScout" / "sources.yaml", ss_root / "sources.yaml")
     for c in candidates:
         store.upsert(RawItem(c["source_id"], c["source"]["url"], c["source"]["title"], None, text, ()),
                      "2026-09-30T00:00:00+00:00", 20000)

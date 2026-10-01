@@ -15,7 +15,8 @@ from problemextractor.schema import PE_SCHEMA, PEOutput
 from problemextractor.similarity import shortlist
 from problemextractor.state import PEState
 from rqd.claude_code import parse_structured, raise_if_not_transient
-from rqd.errors import ConfigError, ItemExtractionError
+from rqd.config import load_yaml
+from rqd.errors import ConfigError, ItemExtractionError, RqdError
 from rqd.quotes import quote_in_text
 from rqd.timeutil import iso, utcnow
 from sourcescout.store import Store
@@ -114,8 +115,14 @@ def _doc(record: dict) -> str:
     return f"{record['problem']['precise_statement']} {record['desired_capability']}"
 
 
-def new_candidates(ctx: PEContext) -> list[dict]:
-    """Unprocessed SourceScout candidates, tier A first, oldest first within a tier."""
+def new_candidates(ctx: PEContext, categories: list[str] | None = None) -> list[dict]:
+    """Unprocessed SourceScout candidates (of the given source categories, if any), tier A first, oldest first
+    within a tier."""
+    if categories:
+        known = [c["id"] for c in (load_yaml(ctx.ss_root / "sources.yaml", ConfigError) or {}).get("categories", [])]
+        unknown = [c for c in categories if c not in known]
+        if unknown:
+            raise RqdError(f"unknown source category {', '.join(unknown)}", fix=f"Use one of: {', '.join(known)}")
     out = []
     for path in sorted((ctx.ss_root / "output").glob("*/*.yaml")):
         try:
@@ -124,7 +131,7 @@ def new_candidates(ctx: PEContext) -> list[dict]:
         except (yaml.YAMLError, KeyError, TypeError) as e:
             ctx.report.failures.append(f"{path.name}: unreadable candidate file ({e!r})")
             continue
-        if not ctx.state.is_processed(c["candidate_id"]):
+        if not ctx.state.is_processed(c["candidate_id"]) and (not categories or c["source"].get("category") in categories):
             out.append((key, c))
     return [c for _, c in sorted(out, key=lambda kc: kc[0])]
 
@@ -195,8 +202,9 @@ def process(ctx: PEContext, client, candidate: dict) -> str:
     return "new"
 
 
-def run_extraction(ctx: PEContext, client, limit: int | None = None) -> None:
-    candidates = new_candidates(ctx)[:limit] if limit is not None else new_candidates(ctx)
+def run_extraction(ctx: PEContext, client, limit: int | None = None, categories: list[str] | None = None) -> None:
+    candidates = new_candidates(ctx, categories)
+    candidates = candidates[:limit] if limit is not None else candidates
     log.info("processing %d new candidates (%d problems on file)", len(candidates), len(ctx.docs))
     for i, c in enumerate(candidates, 1):
         started = time.monotonic()

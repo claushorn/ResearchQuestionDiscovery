@@ -103,6 +103,23 @@ def test_tier_a_first_and_limit(ctx, tmp_path):
     assert "Call 1" in client.calls[0]["messages"][0]["content"]
 
 
+def test_category_filter_picks_company_sources(ctx, tmp_path):
+    blog = candidate(0, tier="C", source_id="rss-x")
+    blog["source"]["category"] = "tech_blog"
+    seed(tmp_path / "SourceScout", [blog, candidate(1, tier="A")])
+    client = FakeClient([message(pe_output())])
+    run_extraction(ctx(), client, categories=["tech_blog"])
+    assert len(client.calls) == 1 and "Call 0" in client.calls[0]["messages"][0]["content"]
+
+
+def test_unknown_category_is_a_clean_error(ctx, tmp_path):
+    from rqd.errors import RqdError
+    seed(tmp_path / "SourceScout", [candidate(0)])
+    with pytest.raises(RqdError, match="tech_blgo") as e:
+        run_extraction(ctx(), FakeClient([]), categories=["tech_blgo"])
+    assert "gov_solicitation" in e.value.fix
+
+
 def test_structured_output_retries_are_counted(ctx, tmp_path):
     seed(tmp_path / "SourceScout", [candidate(0)])
     m = message(pe_output())
