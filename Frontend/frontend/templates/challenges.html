@@ -19,7 +19,7 @@
   {% for r in table.rows %}
     <tr>
       <td class="sel"><input type="checkbox" name="ids" value="{{ r.item_id }}" form="selection" aria-label="select {{ r.item_id }}"></td>
-      <td class="statement"><a href="/challenges/{{ r.item_id }}">{{ r.title }}</a><br><span class="muted small">{{ r.source_id }}, <a href="{{ r.url }}" target="_blank" rel="noopener">page</a></span></td>
+      <td class="statement"><a href="/challenges/{{ r.item_id }}"><span class="clamp" title="{{ r.title }}">{{ r.title }}</span></a><br><span class="muted small">{{ r.source_id }}, <a href="{{ r.url }}" target="_blank" rel="noopener">page</a></span></td>
       <td>{% if r.verdict %}<span class="chip {{ 'ok' if r.verdict == 'open' else 'bad' if r.verdict == 'solved' else '' }}">{{ r.headline }}</span>{% else %}<span class="chip">not checked</span>{% endif %}</td>
       <td>{{ r.winner or "—" }}</td>
       <td>{{ "yes" if r.investigated else "no" }}</td>

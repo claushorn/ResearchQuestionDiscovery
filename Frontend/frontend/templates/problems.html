@@ -27,7 +27,7 @@
   {% for r in table.rows %}
     <tr>
       <td class="sel"><input type="checkbox" name="ids" value="{{ r.problem_id }}" form="selection" aria-label="select {{ r.problem_id }}"></td>
-      <td class="statement"><a href="/problems/{{ r.problem_id }}">{{ r.statement }}</a><br><span class="muted small">{{ r.problem_id }}</span></td>
+      <td class="statement"><a href="/problems/{{ r.problem_id }}"><span class="clamp" title="{{ r.statement }}">{{ r.statement }}</span></a><br><span class="muted small">{{ r.problem_id }}</span></td>
       <td class="num">{{ r.n_sources }} <span class="muted">{{ r.best_tier }}</span></td>
       <td>{{ r.payment }}{% if r.due_passed %} <span class="chip bad">due passed</span>{% endif %}</td>
       <td>{% if r.novelty %}<span class="chip {{ 'ok' if r.novelty == 'likely_open' else 'bad' if r.novelty == 'solved' else '' }}">{{ r.novelty }}</span>{% else %}<span class="muted">—</span>{% endif %}</td>

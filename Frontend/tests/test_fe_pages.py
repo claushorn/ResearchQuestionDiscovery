@@ -115,3 +115,14 @@ def test_unreadable_challenge_record_is_a_clean_error_page(env):
     res = env["client"].get(f"/challenges/{checked}")
     assert res.status_code == 500 and f"{checked}.yaml" in res.text and "Fix:" in res.text
     assert "Traceback" not in res.text and "Internal Server Error" not in res.text
+
+
+def test_long_texts_are_clamped_in_tables_with_the_full_text_on_hover(env):
+    """Full statements made Problems rows 10-15 lines tall (~3 of 498 rows per screen)."""
+    assert '<span class="clamp" title="Precise statement of prob-a.">' in get(env, "/problems")
+    assert '<span class="clamp" title="Synthetic problem statement 0.">' in get(env, "/candidates")
+    assert '<span class="clamp" title="Can we solve prob-a?">' in get(env, "/opportunities")
+    assert '<span class="clamp" title="Challenge 0">' in get(env, "/challenges")
+    css = get(env, "/static/app.css")
+    assert ".clamp" in css and "-webkit-line-clamp" in css
+    assert "Precise statement of prob-a." in get(env, "/problems/prob-a")  # the dossier shows it in full

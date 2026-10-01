@@ -22,7 +22,7 @@
       <td class="sel"><input type="checkbox" name="ids" value="{{ r.candidate_id }}" form="selection" aria-label="select {{ r.candidate_id }}" {% if r.decision %}disabled title="already extracted"{% endif %}></td>
       <td><a href="{{ r.url }}" target="_blank" rel="noopener">{{ r.title }}</a><br><span class="muted small">{{ r.source_id }}{% if r.category %}, {{ r.category }}{% endif %}</span></td>
       <td>{{ r.tier }}</td>
-      <td class="statement">{{ r.statement }}<br><span class="muted small">{{ r.candidate_id }}</span></td>
+      <td class="statement"><span class="clamp" title="{{ r.statement }}">{{ r.statement }}</span><span class="muted small">{{ r.candidate_id }}</span></td>
       <td>{{ r.payment }}</td>
       <td>{{ r.deadline or "—" }}{% if r.due_passed %} <span class="chip bad">due passed</span>{% endif %}</td>
       <td>{% if r.problem_id %}<a href="/problems/{{ r.problem_id }}">{{ r.problem_id }}</a> <span class="muted small">{{ r.decision }}</span>

@@ -20,7 +20,7 @@
       <td><span class="chip {{ 'accent' if r.recommendation == 'investigate' else 'ok' if r.recommendation == 'contact' else '' }}">{{ r.recommendation }}</span></td>
       {% for s in r.scores %}<td class="num">{{ "?" if s is none else s }}</td>{% endfor %}
       <td>{% for s in r.stale %}<span class="chip warn">{{ s }}</span> {% else %}<span class="muted">—</span>{% endfor %}</td>
-      <td class="statement">{{ r.title }}</td>
+      <td class="statement"><span class="clamp" title="{{ r.title }}">{{ r.title }}</span></td>
       <td>{% with kind="opportunity", item_id=r.id, t=r.triage %}{% include "triage.html" %}{% endwith %}</td>
     </tr>
   {% else %}
