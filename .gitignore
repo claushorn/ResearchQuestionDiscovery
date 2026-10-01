@@ -19,3 +19,14 @@ OpportunityGenerator/opportunities/*
 !OpportunityGenerator/opportunities/.gitkeep
 OpportunityGenerator/briefs/*
 !OpportunityGenerator/briefs/.gitkeep
+# tool output: never tracked, so `git pull` cannot collide with local runs (guard: common/tests/test_rqd_repo_layout.py)
+SourceScout/output/
+SourceScout/discovered_unmapped.yaml
+ProblemExtractor/problems/*
+!ProblemExtractor/problems/.gitkeep
+NoveltyInvestigator/investigations/*
+!NoveltyInvestigator/investigations/.gitkeep
+EconomicValueInvestigator/assessments/*
+!EconomicValueInvestigator/assessments/.gitkeep
+ChallengeInvestigator/challenges/*
+!ChallengeInvestigator/challenges/.gitkeep
