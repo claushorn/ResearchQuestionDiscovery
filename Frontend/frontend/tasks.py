@@ -59,17 +59,18 @@ class TaskRunner:
         self._lock = threading.Lock()
 
     def reconcile(self) -> None:
-        """At server start: tasks recorded as running whose process is gone ended while the server was down."""
-        for tid, pid in self._db.execute("SELECT id, pid FROM tasks WHERE status='running'").fetchall():
-            if not _alive(pid):
-                with self._db:
-                    self._db.execute("UPDATE tasks SET status='interrupted', ended=? WHERE id=?", (iso(utcnow()), tid))
+        """At server start: every task recorded as running lost its owner (the previous server), so nobody waits for
+        it or records its end. Its CLI may still be running in its own session; then it holds the stage's run lock
+        and busy() reports it as a run outside the frontend."""
+        with self._db:
+            self._db.execute("UPDATE tasks SET status='interrupted', ended=? WHERE status='running'", (iso(utcnow()),))
 
     def busy(self) -> str | None:
-        """Why Run is unavailable: a running Agent Task, or a stage's run lock held by a command run elsewhere."""
-        row = self._db.execute("SELECT id, action, pid FROM tasks WHERE status='running' ORDER BY id DESC").fetchone()
-        if row and (row[0] in self._procs or _alive(row[2])):
-            return f"Agent Task #{row[0]} is running ({ACTIONS[row[1]].label})"
+        """Why Run is unavailable: this server's running Agent Task, or a stage's run lock held by a command run
+        elsewhere (a terminal, or the CLI of a task whose server was restarted)."""
+        for tid, action in self._db.execute("SELECT id, action FROM tasks WHERE status='running' ORDER BY id DESC"):
+            if tid in self._procs:
+                return f"Agent Task #{tid} is running ({ACTIONS[action].label})"
         held = [root.name for root in self.roots.values() if lock_held(root)]
         if held:
             return f"a command started outside the frontend is running on {', '.join(held)}"
@@ -142,14 +143,3 @@ class TaskRunner:
         row = self._db.execute("SELECT id FROM tasks ORDER BY id DESC LIMIT 1").fetchone()
         return self.status(row[0]) if row else None
 
-
-def _alive(pid: int | None) -> bool:
-    if pid is None:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True

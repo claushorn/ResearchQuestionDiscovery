@@ -231,3 +231,30 @@ def test_ids_cannot_become_options_of_the_stage_cli(env):
     argv = ACTIONS["extract"].argv(bin_dir, env["roots"]["problemextractor"], ["--help"], force=False)
     res = subprocess.run(argv, capture_output=True, text=True, timeout=60)
     assert res.returncode == 1 and "unknown candidate --help" in res.stderr
+
+
+def test_after_a_restart_running_tasks_are_interrupted_and_an_orphan_cli_shows_as_an_outside_run(env):
+    old = env["runner"]
+    tid = old.start("fit", ["slow-1"], force=False)
+    end = time.monotonic() + 10
+    while time.monotonic() < end and "slow-1: running" not in old.status(tid)["log"]:
+        time.sleep(0.05)
+    restarted = TaskRunner(env["root"] / "data", env["roots"], bin_dir=env["bin"])  # the server restarted
+    restarted.reconcile()
+    assert restarted.status(tid)["status"] == "interrupted"
+    reason = restarted.busy()
+    assert reason and "outside" in reason and "PersonalFitInvestigator" in reason  # the orphan CLI holds the lock
+    old.cancel(tid)
+    wait(old, tid)
+
+
+def test_a_reused_pid_does_not_keep_the_app_busy(env):
+    import sqlite3
+    runner = env["runner"]
+    tid = runner.start("fit", ["prob-a"], force=False)
+    wait(runner, tid)
+    with sqlite3.connect(env["root"] / "data" / "frontend.db") as db:  # a row left running; its pid now belongs
+        db.execute("UPDATE tasks SET status='running', pid=? WHERE id=?", (os.getpid(), tid))  # to another process
+    restarted = TaskRunner(env["root"] / "data", env["roots"], bin_dir=env["bin"])
+    restarted.reconcile()
+    assert restarted.busy() is None and restarted.status(tid)["status"] == "interrupted"
