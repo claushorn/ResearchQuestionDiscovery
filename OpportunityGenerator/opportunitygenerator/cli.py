@@ -57,11 +57,11 @@ def _s(x) -> str:
 def list_opportunities(ctx: typer.Context):
     """One line per opportunity: id, recommendation, N(ovelty) V(alue) T(ractability) F(it), stale inputs, title."""
     og = _open(ctx.obj)
-    recs = og.opportunities.all() if og.opportunities.dir.is_dir() else []
+    recs = og.stores.opportunities.all() if og.stores.opportunities.dir.is_dir() else []
     order = {"investigate": 0, "contact": 1, "ignore": 2}
     for r in sorted(recs, key=lambda r: (order[r["recommendation"]], r["id"])):
         p = r["opportunity_profile"]
-        stale = stale_inputs(og, r)
+        stale = stale_inputs(og.stores, r)
         typer.echo(f"{r['id']}  {r['recommendation']:<11} N{_s(p['novelty'])} V{_s(p['economic_value'])} "
                    f"T{p['tractability']} F{p['personal_advantage']}"
                    f"{'  STALE: ' + ', '.join(stale) if stale else ''}  {r['title'][:80]}")
@@ -75,7 +75,7 @@ def show(ctx: typer.Context, key: str = typer.Argument(..., help="OPP-NNNN or a 
     """Print one opportunity record (or its brief)."""
     paths = OGPaths(ctx.obj)
     og = _open(ctx.obj)
-    recs = og.opportunities.all() if og.opportunities.dir.is_dir() else []
+    recs = og.stores.opportunities.all() if og.stores.opportunities.dir.is_dir() else []
     rec = next((r for r in recs if key in (r["id"], r["problem_id"])), None)
     if rec is None:
         raise RqdError(f"no opportunity {key}", fix="See `uv run opportunities list`")

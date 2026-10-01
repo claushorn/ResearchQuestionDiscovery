@@ -151,3 +151,17 @@ def test_cli_headroom_list_investigate_show(env, monkeypatch):
     assert "0.9 Accuracy" in res.output
     assert r.invoke(app, ["--root", str(env), "investigate", A]).exit_code == 0
     assert "ideas" in r.invoke(app, ["--root", str(env), "show", A]).output
+
+
+def test_refusal_runs_on_stores_alone_without_a_client(env, tmp_path):
+    from challengeinvestigator.run import refusal
+    from rqd.records import YamlStore
+    ctx, _ = context(env, [], pages=SOLVED_PAGES)
+    check_headroom(ctx, [A])
+    store, challenges = Store(tmp_path / "SourceScout" / "data" / "scout.db"), YamlStore(env / "challenges")
+    assert refusal(store, challenges, B, False) is None
+    assert refusal(store, challenges, A, True) is None
+    solved = refusal(store, challenges, A, False)
+    assert isinstance(solved, RqdError) and "solved" in str(solved) and "--force" in solved.fix
+    active = refusal(store, challenges, item_id_for("https://www.aicrowd.com/challenges/active"), False)
+    assert "not a finished challenge" in str(active) and "challenges list" in active.fix

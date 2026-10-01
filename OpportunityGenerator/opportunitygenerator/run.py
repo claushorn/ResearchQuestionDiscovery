@@ -28,14 +28,34 @@ TEXTS = ("title_question", "novelty_reasoning", "value_reasoning", "tractability
 
 
 @dataclass
-class OGContext:
-    cfg: OGConfig
-    paths: OGPaths
-    problems: YamlStore        # read-only stores of the earlier stages
+class OGStores:
+    """The stores this stage reads (earlier stages, read-only) and writes (opportunities); no agent client."""
+    problems: YamlStore
     fits: YamlStore
     investigations: YamlStore
     assessments: YamlStore
     opportunities: YamlStore
+
+    @classmethod
+    def open(cls, paths: OGPaths, cfg: OGConfig) -> "OGStores":
+        def store(root: str, sub: str, required: bool = False) -> YamlStore:
+            d = (paths.root / root).resolve() / sub
+            if required and not d.is_dir():
+                raise ConfigError(f"directory not found: {d}", fix="Set the *_root paths in OpportunityGenerator/config.yaml")
+            return YamlStore(d)
+        return cls(store(cfg.problemextractor_root, "problems", True), store(cfg.personalfit_root, "fits"),
+                   store(cfg.noveltyinvestigator_root, "investigations"), store(cfg.economicvalue_root, "assessments"),
+                   YamlStore(paths.opportunities))
+
+    def optional(self, store: YamlStore, problem_id: str) -> dict | None:
+        return store.load(problem_id) if store.exists(problem_id) else None
+
+
+@dataclass
+class OGContext:
+    cfg: OGConfig
+    paths: OGPaths
+    stores: OGStores
     client: ClaudeCodeClient
     fetcher: Fetcher
     run_id: str
@@ -43,30 +63,20 @@ class OGContext:
     @classmethod
     def open(cls, paths: OGPaths, cfg: OGConfig, client: ClaudeCodeClient, fetcher: Fetcher,
              run_id: str | None = None) -> "OGContext":
-        def store(root: str, sub: str, required: bool = False) -> YamlStore:
-            d = (paths.root / root).resolve() / sub
-            if required and not d.is_dir():
-                raise ConfigError(f"directory not found: {d}", fix="Set the *_root paths in OpportunityGenerator/config.yaml")
-            return YamlStore(d)
-        return cls(cfg, paths, store(cfg.problemextractor_root, "problems", True), store(cfg.personalfit_root, "fits"),
-                   store(cfg.noveltyinvestigator_root, "investigations"), store(cfg.economicvalue_root, "assessments"),
-                   YamlStore(paths.opportunities), client, fetcher, run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
-
-    def optional(self, store: YamlStore, problem_id: str) -> dict | None:
-        return store.load(problem_id) if store.exists(problem_id) else None
+        return cls(cfg, paths, OGStores.open(paths, cfg), client, fetcher, run_id or utcnow().strftime("%Y%m%dT%H%M%SZ"))
 
 
 NOVELTY_STATUSES = ("likely_open", "partially_solved", "solved", "unclear")
 
 
-def load_inputs(ctx: OGContext, pid: str) -> tuple[dict, dict, dict | None, dict | None]:
+def load_inputs(stores: OGStores, pid: str) -> tuple[dict, dict, dict | None, dict | None]:
     """Problem, fit, novelty, EV — each checked for the keys this stage reads, before any spend."""
-    if not ctx.problems.exists(pid):
+    if not stores.problems.exists(pid):
         raise RqdError(f"no problem {pid}", fix="See `uv run problemextractor list`")
-    if not ctx.fits.exists(pid):
+    if not stores.fits.exists(pid):
         raise RqdError(f"no fit for {pid}", fix=f"Run `uv run fit assess {pid}` first")
-    problem, fit = ctx.problems.load(pid), ctx.fits.load(pid)
-    novelty, ev = ctx.optional(ctx.investigations, pid), ctx.optional(ctx.assessments, pid)
+    problem, fit = stores.problems.load(pid), stores.fits.load(pid)
+    novelty, ev = stores.optional(stores.investigations, pid), stores.optional(stores.assessments, pid)
     checks = [("problem", problem, lambda r: (r["revision"], r["problem"]["precise_statement"]),
                f"Re-run `problemextractor` for {pid}"),
               ("fit", fit, lambda r: (r["revision"], r["problem_revision"], r["profile_digest"], r["advantages"],
@@ -100,13 +110,13 @@ def _inputs(problem: dict, fit: dict, novelty: dict | None, ev: dict | None) -> 
             "ev_revision": ev["revision"] if ev else None}
 
 
-def stale_inputs(ctx: OGContext, record: dict) -> list[str]:
+def stale_inputs(stores: OGStores, record: dict) -> list[str]:
     """Which inputs changed since the opportunity was generated."""
     pid = record["problem_id"]
-    if not ctx.problems.exists(pid) or not ctx.fits.exists(pid):
+    if not stores.problems.exists(pid) or not stores.fits.exists(pid):
         return ["problem or fit removed"]
-    now = _inputs(ctx.problems.load(pid), ctx.fits.load(pid), ctx.optional(ctx.investigations, pid),
-                  ctx.optional(ctx.assessments, pid))
+    now = _inputs(stores.problems.load(pid), stores.fits.load(pid), stores.optional(stores.investigations, pid),
+                  stores.optional(stores.assessments, pid))
     was = record["inputs"]
     names = {"problem_revision": "problem", "fit_revision": "fit", "fit_profile_digest": "fit",
              "novelty_revision": "novelty", "ev_revision": "economic value"}
@@ -132,7 +142,7 @@ def _backing(problem: dict, novelty: dict | None, ev: dict | None, evidence: lis
 
 def generate_one(ctx: OGContext, problem_id: str) -> dict:
     a = ctx.cfg.agent
-    problem, fit, novelty, ev = load_inputs(ctx, problem_id)
+    problem, fit, novelty, ev = load_inputs(ctx.stores, problem_id)
     res, transcript = run_agent_logged(
         ctx.client, transcripts_dir=ctx.paths.transcripts, record_id=problem_id, run_id=ctx.run_id, model=a.model,
         effort=a.effort, system=SYSTEM.format(min_searches=a.min_searches), user=render_input(problem, fit, novelty, ev),
@@ -150,7 +160,7 @@ def generate_one(ctx: OGContext, problem_id: str) -> dict:
     status = novelty["novelty"]["status"] if novelty else None
     recommendation, reason = recommend(profile, status, out.next_step, out.next_step_reason, ctx.cfg.thresholds)
     quotes, backed = _backing(problem, novelty, ev, evidence)
-    opp_id = opp_id_for(ctx.opportunities, problem_id)
+    opp_id = opp_id_for(ctx.stores.opportunities, problem_id)
     record = {
         "id": opp_id, "problem_id": problem_id, "revision": 1, "title": out.title_question,
         "opportunity_profile": profile,
@@ -169,9 +179,9 @@ def generate_one(ctx: OGContext, problem_id: str) -> dict:
                      "unsupported_amounts": unsupported_amounts([(k, getattr(out, k)) for k in TEXTS], quotes, backed)},
         "search": search_summary(res.tool_calls, a.min_searches),
         "run": run_info(res, model=a.model, effort=a.effort, transcript=transcript), "history": []}
-    record = with_history(ctx.opportunities, opp_id, record,
+    record = with_history(ctx.stores.opportunities, opp_id, record,
                           keep=("revision", "opportunity_profile", "recommendation", "inputs", "run"))
-    ctx.opportunities.save(record, opp_id)
+    ctx.stores.opportunities.save(record, opp_id)
     ctx.paths.briefs.mkdir(parents=True, exist_ok=True)
     (ctx.paths.briefs / f"{opp_id}.md").write_text(render(record, problem, fit, novelty, ev, ctx.cfg.profile_name),
                                                    encoding="utf-8")
@@ -181,8 +191,8 @@ def generate_one(ctx: OGContext, problem_id: str) -> dict:
 def generate(ctx: OGContext, problem_ids: list[str]) -> dict[str, str]:
     """Returns {problem_id: error}. Every input and the opportunity store are checked before any spend."""
     for pid in problem_ids:
-        load_inputs(ctx, pid)
-        opp_id_for(ctx.opportunities, pid)
+        load_inputs(ctx.stores, pid)
+        opp_id_for(ctx.stores.opportunities, pid)
 
     def one(pid: str) -> str:
         rec = generate_one(ctx, pid)

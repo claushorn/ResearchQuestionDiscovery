@@ -49,14 +49,15 @@ def problems_store(paths: EVPaths, cfg: EVConfig) -> YamlStore:
     return YamlStore(directory)
 
 
-def gate(ctx: EVContext, problem_id: str, force: bool) -> str:
-    if not ctx.problems.exists(problem_id):
+def gate(problems: YamlStore, investigations: YamlStore, problem_id: str, force: bool) -> str:
+    """Pre-spend check on the stores alone: raises RqdError when refused, else the gate result for the record."""
+    if not problems.exists(problem_id):
         raise RqdError(f"no problem {problem_id}", fix="See `uv run problemextractor list`")
-    if not ctx.investigations.exists(problem_id):
+    if not investigations.exists(problem_id):
         log.warning("%s: not investigated by NoveltyInvestigator; assessing anyway", problem_id)
         return "not_investigated"
     try:
-        status = ctx.investigations.load(problem_id)["novelty"]["status"]
+        status = investigations.load(problem_id)["novelty"]["status"]
     except (KeyError, TypeError) as e:
         raise RqdError(f"malformed investigation file for {problem_id} ({e!r})",
                        fix=f"Re-run `noveltyinvestigator investigate {problem_id}` or remove the file") from e
@@ -115,7 +116,7 @@ def assess_one(ctx: EVContext, problem_id: str, gate_result: str) -> dict:
 
 def assess(ctx: EVContext, problem_ids: list[str], force: bool = False) -> dict[str, str]:
     """Assess each problem; returns {problem_id: error}. Gates are checked for all ids before any spend."""
-    gates = {pid: gate(ctx, pid, force) for pid in problem_ids}
+    gates = {pid: gate(ctx.problems, ctx.investigations, pid, force) for pid in problem_ids}
     def one(pid: str) -> str:
         rec = assess_one(ctx, pid, gates[pid])
         pv = rec["economic_value"]["potential_value"]

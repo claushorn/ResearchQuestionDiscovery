@@ -135,3 +135,14 @@ def test_wrong_problemextractor_root_is_a_clean_error(env):
     (env / "config.yaml").write_text(cfg)
     res = CliRunner().invoke(app, ["--root", str(env), "score"])
     assert res.exit_code == 1 and "problems directory not found" in res.output and "Traceback" not in res.output
+
+
+def test_gate_runs_on_stores_alone_without_a_client(env):
+    from economicvalue.assess import gate
+    problems = YamlStore(env.parent / "ProblemExtractor" / "problems")
+    investigations = YamlStore(env.parent / "NoveltyInvestigator" / "investigations")
+    assert gate(problems, investigations, "prob-a", False) == "passed"
+    assert gate(problems, investigations, "prob-b", False) == "not_investigated"
+    assert gate(problems, investigations, "prob-s", True) == "forced"
+    with pytest.raises(RqdError, match="NoveltyInvestigator marked it solved"):
+        gate(problems, investigations, "prob-s", False)
