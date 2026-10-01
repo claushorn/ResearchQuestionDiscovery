@@ -65,11 +65,19 @@ def _index(directory: Path, read, fix: str, errors: list[Error]) -> dict[str, tu
     out = {}
     for path in sorted(directory.glob("*.yaml")) if directory.is_dir() else []:
         try:
-            record = read_yaml(path)
-            out[path.stem] = (record, read(record))
+            out[path.stem] = _read_file(path, read)
         except READ_ERRORS as e:
-            errors.append((str(path), f"unreadable record ({type(e).__name__}: {e})", fix.format(id=path.stem, dir=directory)))
+            errors.append(_error(path, e, fix))
     return out
+
+
+def _read_file(path: Path, read) -> tuple[dict, object]:
+    record = read_yaml(path)
+    return record, read(record)
+
+
+def _error(path: Path, e: Exception, fix: str) -> Error:
+    return str(path), f"unreadable record ({type(e).__name__}: {e})", fix.format(id=path.stem, dir=path.parent)
 
 
 def _search(text: str, q: str | None) -> bool:
@@ -187,8 +195,7 @@ def _candidate_row(c: dict, processed: dict[str, tuple[str, str]]) -> dict:
 
 
 def _candidate_errors(unreadable: list[tuple[Path, Exception]]) -> list[Error]:
-    return [(str(p), f"unreadable candidate file ({type(e).__name__}: {e})",
-             f"Inspect {p}; move it out of {p.parent} if it is not a SourceScout candidate") for p, e in unreadable]
+    return [_error(p, e, FIX_CANDIDATE) for p, e in unreadable]
 
 
 def _processed(pe_root: Path) -> dict[str, tuple[str, str]]:
@@ -285,9 +292,23 @@ def problems(roots: dict[str, Path], filters: dict, sort: str, page: int, page_s
     return _page(rows, page, page_size, s.errors)
 
 
-def _candidate_file(ss_root: Path, candidate_id: str) -> dict | None:
+def _read_candidate(c: dict) -> None:
+    c["source"]["url"], c["source"]["title"], c["source"]["tier"], c["candidate_problem"]["statement"]  # dossier keys
+
+
+FIX_CANDIDATE = "Inspect {dir}/{id}.yaml; move it out of {dir} if it is not a SourceScout candidate"
+
+
+def _candidate_file(ss_root: Path, candidate_id: str, errors: list[Error]) -> dict | None:
+    """The candidate's file (None when missing or unreadable; an unreadable one goes to `errors`)."""
     paths = sorted((ss_root / "output").glob(f"*/{candidate_id}.yaml"))
-    return read_yaml(paths[-1]) if paths else None
+    if not paths:
+        return None
+    try:
+        return _read_file(paths[-1], _read_candidate)[0]
+    except READ_ERRORS as e:
+        errors.append(_error(paths[-1], e, FIX_CANDIDATE))
+        return None
 
 
 def dossier(roots: dict[str, Path], problem_id: str) -> dict:
@@ -302,7 +323,7 @@ def dossier(roots: dict[str, Path], problem_id: str) -> dict:
     record = s.problems[problem_id][0]
     cands = []
     for src in record["sources"]:
-        c = _candidate_file(roots["sourcescout"], src["candidate_id"])
+        c = _candidate_file(roots["sourcescout"], src["candidate_id"], s.errors)
         cands.append({"candidate_id": src["candidate_id"], "source": c["source"] if c else src,
                       "candidate": c, "payment_signal": src["payment_signal"], "source_id": src["source_id"]})
     opp_record = s.opps_by_problem.get(problem_id, (None, None))[0]
@@ -378,7 +399,13 @@ def challenge(roots: dict[str, Path], item_id: str) -> dict:
     if item is None or not item.finished:
         raise RqdError(f"{item_id} is not a finished challenge in the SourceScout store", fix="See the Challenges page")
     path = CIPaths(roots["challengeinvestigator"]).challenges / f"{item_id}.yaml"
-    return {"item": item, "record": read_yaml(path) if path.exists() else None}
+    if not path.exists():
+        return {"item": item, "record": None}
+    try:
+        return {"item": item, "record": _read_file(path, _read_challenge)[0]}
+    except READ_ERRORS as e:
+        file, message, fix = _error(path, e, FIX_CHALLENGE)
+        raise RqdError(f"{file}: {message}", fix=fix) from None
 
 
 def overview(roots: dict[str, Path]) -> dict:

@@ -98,3 +98,20 @@ def test_triage_controls_on_every_table(env):
         assert 'class="triage"' in get(env, url)
     html = get(env, "/problems?triage=shortlist")
     assert "/problems/prob-a" in html and "/problems/prob-b" not in html
+
+
+@pytest.mark.parametrize("content", ["x: [", "source_id: s\n"])  # not YAML / a candidate without its keys
+def test_dossier_lists_an_unreadable_candidate_file_and_shows_the_rest(env, content):
+    path = next((env["root"].parent / "SourceScout" / "output").glob(f"*/{env['candidates'][0]}.yaml"))
+    path.write_text(content, encoding="utf-8")
+    html = get(env, "/problems/prob-a")
+    assert path.name in html and "Fix:" in html
+    assert "Precise statement of prob-a." in html and "https://g.example/1" in html  # the other source still shows
+
+
+def test_unreadable_challenge_record_is_a_clean_error_page(env):
+    checked, _ = env["challenges"]
+    (env["root"].parent / "ChallengeInvestigator" / "challenges" / f"{checked}.yaml").write_text("x: [", encoding="utf-8")
+    res = env["client"].get(f"/challenges/{checked}")
+    assert res.status_code == 500 and f"{checked}.yaml" in res.text and "Fix:" in res.text
+    assert "Traceback" not in res.text and "Internal Server Error" not in res.text
