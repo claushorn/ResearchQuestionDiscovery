@@ -1,7 +1,8 @@
 agent:                              # one call per problem, no web tools: profile vs problem
   model: claude-opus-5-5
   effort: medium
-  max_budget_usd: 0.5
+  max_budget_usd: 1.5               # a runaway guard, not a target: a biology-safeguard fallback to another model
+                                    # re-reads the uncached profile (measured $0.71 for one fit)
   min_searches: 0
 profile_dir: ../personal_profile    # git-ignored; see README.md for what to put there
 profile_max_chars: 200000           # guard against an accidental huge file; the profile is sent on every call

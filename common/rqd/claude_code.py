@@ -38,6 +38,19 @@ class AgentResult:
     duration_s: float
     models_used: list[str]  # more than one: Claude Code fell back (e.g. after a biology-classifier stop)
     transcript: str = field(repr=False)
+    over_budget: bool = False  # the output was accepted, then the session ran past its budget cap
+
+
+def _accepted_output(events: list[dict]) -> dict | None:
+    """The last StructuredOutput the CLI accepted ("provided successfully"), read from the stream. The result event
+    of an over-budget session omits it although it was delivered (the cap is checked between turns)."""
+    accepted = {b.get("tool_use_id") for e in events if e.get("type") == "user"
+                for b in (e.get("message") or {}).get("content") or [] if isinstance(b, dict)
+                and b.get("type") == "tool_result" and "provided successfully" in str(b.get("content"))}
+    outputs = [b.get("input") for e in events if e.get("type") == "assistant"
+               for b in (e.get("message") or {}).get("content") or []
+               if b.get("type") == "tool_use" and b.get("name") == "StructuredOutput" and b.get("id") in accepted]
+    return outputs[-1] if outputs else None
 
 
 def _run(args, *, input, env, cwd, timeout):
@@ -129,14 +142,18 @@ class ClaudeCodeClient:
             raise AgentError(f"claude -p exit {proc.returncode}: no result event ({(proc.stderr or '')[:200]})",
                              transcript)
         out = results[-1]
-        _raise_for_error(out, transcript)
+        over_budget = False
+        if "budget" in str(out.get("subtype")) and (kept := _accepted_output(events)) is not None:
+            out, over_budget = out | {"structured_output": kept}, True  # spent: keep what was delivered
+        else:
+            _raise_for_error(out, transcript)
         if out.get("structured_output") is None:
             raise AgentError("agent finished without structured_output", transcript)
         calls = [ToolCall(b.get("name", ""), b.get("input") or {}) for e in events if e.get("type") == "assistant"
                  for b in (e.get("message") or {}).get("content") or [] if b.get("type") == "tool_use"]
         return AgentResult(out["structured_output"], calls, out.get("usage") or {}, out.get("total_cost_usd") or 0.0,
                            out.get("num_turns") or 0, (out.get("duration_ms") or 0) / 1000,
-                           list(out.get("modelUsage") or {}), transcript)
+                           list(out.get("modelUsage") or {}), transcript, over_budget)
 
 
 def make_client(backend: str):
