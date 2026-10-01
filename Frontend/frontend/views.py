@@ -125,13 +125,25 @@ class Stores:
     errors: list[Error]
 
 
+_PROFILES: dict[tuple, Profile] = {}  # one entry: the profile for the current file stats
+
+
 def _profile(pf_root: Path, errors: list[Error]) -> Profile | None:
+    """PersonalFit's own load_profile, re-run only when a profile file is added, removed or changed (PDF text
+    extraction costs ~0.6 s; pages need the digest on every request)."""
     cfg = pf_config(PFPaths(pf_root).config)
-    try:
-        return load_profile((pf_root / cfg.profile_dir).resolve(), cfg.profile_max_chars)
-    except RqdError as e:
-        errors.append((str((pf_root / cfg.profile_dir).resolve()), f"fit staleness unknown: {e}", e.fix))
-        return None
+    directory = (pf_root / cfg.profile_dir).resolve()
+    files = sorted(p for p in directory.rglob("*") if p.is_file()) if directory.is_dir() else []
+    key = (directory, cfg.profile_max_chars, tuple((str(p), p.stat().st_size, p.stat().st_mtime_ns) for p in files))
+    if key not in _PROFILES:
+        try:
+            profile = load_profile(directory, cfg.profile_max_chars)
+        except RqdError as e:
+            errors.append((str(directory), f"fit staleness unknown: {e}", e.fix))
+            return None
+        _PROFILES.clear()
+        _PROFILES[key] = profile
+    return _PROFILES[key]
 
 
 def _stores(roots: dict[str, Path]) -> Stores:

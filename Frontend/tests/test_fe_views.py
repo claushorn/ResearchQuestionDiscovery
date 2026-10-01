@@ -149,3 +149,17 @@ def test_600_problems_filter_sort_page_fast(env):
     tiers = [r["best_tier"] for r in views.problems(roots, {"q": "even"}, "tier", 1, 1000).rows]
     assert tiers == sorted(tiers)
     assert elapsed < 1.0, f"{elapsed:.2f}s"
+
+
+def test_profile_is_parsed_once_until_a_profile_file_changes(env, tmp_path, monkeypatch):
+    """Parsing the profile (PDF text extraction) took ~0.6 s of a 0.75 s Problems page on the real store."""
+    calls = []
+    real = views.load_profile
+    monkeypatch.setattr(views, "load_profile", lambda *a: calls.append(a) or real(*a))
+    views.problems(env["roots"], {}, "sources", 1, 50)
+    views.problems(env["roots"], {}, "sources", 1, 50)
+    assert len(calls) <= 1
+    n = len(calls)
+    (tmp_path / "personal_profile" / "notes.md").write_text("Edited profile, longer than before.\n", encoding="utf-8")
+    rows = {r["problem_id"]: r for r in views.problems(env["roots"], {}, "sources", 1, 50).rows}
+    assert len(calls) == n + 1 and "fit" in rows["prob-a"]["stale"]  # the edit is seen at once
