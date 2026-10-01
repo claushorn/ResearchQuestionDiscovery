@@ -258,3 +258,16 @@ def test_a_reused_pid_does_not_keep_the_app_busy(env):
     restarted = TaskRunner(env["root"] / "data", env["roots"], bin_dir=env["bin"])
     restarted.reconcile()
     assert restarted.busy() is None and restarted.status(tid)["status"] == "interrupted"
+
+
+def test_a_missing_console_script_is_a_clean_error_and_leaves_no_running_row(env, monkeypatch):
+    runner = env["runner"]  # its bin dir has only `fit`
+    with pytest.raises(RqdError, match="economicvalue") as e:
+        runner.start("economic_value", ["prob-a"], force=False)
+    assert "uv sync" in e.value.fix
+    assert runner.list() == [] and runner.busy() is None
+    import frontend.app as app_module
+    monkeypatch.setattr(app_module, "BIN_DIR", env["bin"])
+    res = fe_client(env["root"], raise_server_exceptions=False).post(
+        "/tasks/start", data={"action": "economic_value", "ids": ["prob-a"]}, follow_redirects=False)
+    assert res.status_code == 500 and "economicvalue" in res.text and "Fix:" in res.text and "Traceback" not in res.text

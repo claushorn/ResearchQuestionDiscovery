@@ -93,9 +93,18 @@ class TaskRunner:
                     (action, json.dumps(c["runnable"]), json.dumps(c["refused"]), int(force), json.dumps(argv),
                      iso(utcnow()), "running")).lastrowid
             self.logs.mkdir(parents=True, exist_ok=True)
-            with open(self.logs / f"{tid}.log", "wb") as log:
-                proc = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                        start_new_session=True)  # own process group: cancel stops claude -p too
+            log_path = self.logs / f"{tid}.log"
+            try:
+                with open(log_path, "wb") as log:
+                    proc = subprocess.Popen(argv, stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                            start_new_session=True)  # own process group: cancel stops claude -p too
+            except OSError as e:  # the task never started: no row, no log
+                with self._db:
+                    self._db.execute("DELETE FROM tasks WHERE id=?", (tid,))
+                log_path.unlink(missing_ok=True)
+                raise RqdError(f"cannot start {a.script} ({argv[0]}): {e.strerror or e}",
+                               fix=f"Install the stages' console scripts: run `uv sync` in the repository "
+                                   f"(expected in {self.bin_dir})") from e
             self._procs[tid] = proc
             with self._db:
                 self._db.execute("UPDATE tasks SET pid=? WHERE id=?", (proc.pid, tid))
