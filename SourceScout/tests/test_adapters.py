@@ -275,3 +275,44 @@ def test_talks_without_their_own_page_get_distinct_store_ids():
              items_path="props.pageProps.agenda.sessions", title_field="title", text_fields=["body"], id_field="slug")
     items += KINDS["json_sessions"].fetch(src2, make_fetcher({"GET https://conf.example/agenda": NEXT}), never)
     assert len({item_id_for(i.url) for i in items}) == len(items) == 4
+
+
+KDD = """<table><tr><td><strong>A Scalable and Efficient Signal Integration System for Job Matching</strong><br/>
+DOI: https://doi.org/10.1145/3711896.3737185</td></tr><tr><td>Ping Liu (LinkedIn)</td></tr>
+<tr><td><strong>A Fraudulent Blind Shipment Detection Framework</strong><br/>DOI: https://doi.org/10.1145/3711896.3737184.</td></tr>
+<tr><td><strong>Repeated</strong> DOI: https://doi.org/10.1145/3711896.3737185</td></tr></table>"""
+WORK = {"title": "A Scalable and Efficient Signal Integration System for Job Matching", "publication_date": "2025-08-03",
+        "abstract_inverted_index": {"LinkedIn,": [0], "matches": [1], "jobs": [2], "at": [3], "scale.": [4]},
+        "authorships": [{"author": {"display_name": "Ping Liu"}, "institutions": [{"display_name": "LinkedIn (United States)"}]}]}
+
+
+def test_doi_list_one_item_per_paper_with_openalex_abstract_and_institutions():
+    f = make_fetcher({"GET https://kdd.example/ads": KDD,
+                      "GET https://api.openalex.org/works/doi:10.1145/3711896.3737185": WORK,
+                      "GET https://api.openalex.org/works/doi:10.1145/3711896.3737184": {"title": "Fraud", "authorships": []}})
+    items = KINDS["doi_list"].fetch(S("doi_list", "https://kdd.example/ads"), f, never)
+    assert [i.url for i in items] == ["https://doi.org/10.1145/3711896.3737185", "https://doi.org/10.1145/3711896.3737184"]
+    first = items[0]
+    assert first.title == WORK["title"] and first.published == "2025-08-03"
+    assert "LinkedIn, matches jobs at scale." in first.text and "Ping Liu (LinkedIn (United States))" in first.text
+    assert "abstract" not in items[1].text.lower() or "no abstract" in items[1].text.lower()
+
+
+def test_doi_list_skips_known_papers_without_fetching_and_isolates_failures():
+    f = make_fetcher({"GET https://kdd.example/ads": KDD,
+                      "GET https://api.openalex.org/works/doi:10.1145/3711896.3737184": {"title": "Fraud", "authorships": []}})
+    errors = []
+    items = KINDS["doi_list"].fetch(S("doi_list", "https://kdd.example/ads"), f, never, errors)
+    assert [i.title for i in items] == ["Fraud"] and "3737185" in errors[0]
+    known = lambda u: u.endswith("3737185")  # noqa: E731
+    assert [i.title for i in KINDS["doi_list"].fetch(S("doi_list", "https://kdd.example/ads"), f, known)] == ["Fraud"]
+
+
+def test_html_list_link_selector_may_use_descendant_combinators():
+    # measured on m3-konferenz.de: 'div.slot .title a' matched 37 links with css() but 0 with per-node css_matches
+    page = ('<div class="slot"><div class="title"><a href="/t/1.html">Talk 1</a></div></div>'
+            '<div class="slot"><div class="title"><a href="/t/2.html">Talk 2</a></div></div><a href="/imprint">Imprint</a>')
+    f = make_fetcher({"GET https://m3.example/programm": page, "GET https://m3.example/t/1.html": "<p>Abstract 1</p>",
+                      "GET https://m3.example/t/2.html": "<p>Abstract 2</p>"})
+    items = KINDS["html_list"].fetch(S("html_list", "https://m3.example/programm", link_selector="div.slot .title a"), f, never)
+    assert [i.url for i in items] == ["https://m3.example/t/1.html", "https://m3.example/t/2.html"]

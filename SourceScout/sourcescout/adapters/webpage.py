@@ -43,11 +43,13 @@ def fetch_list(source: Source, http: Fetcher, is_known: IsKnown,
     marker = re.compile(p["finished_link_text"]) if p.get("finished_link_text") else None
     urls, finished = [], set()
     in_finished_section = bool(p.get("finished_listing"))  # a listing of finished entries only (e.g. ?filter=completed)
-    for node in HTMLParser(resp.text).root.traverse():  # document order, so a heading can start the finished section
+    tree = HTMLParser(resp.text)
+    links = {n.mem_id for n in tree.css(p["link_selector"])}  # css_matches() fails on descendant selectors
+    for node in tree.root.traverse():  # document order, so a heading can start the finished section
         if below and node.tag in _HEADINGS and below.search(node.text(separator=" ")):
             in_finished_section = True
             continue
-        if node.tag != "a" or not node.css_matches(p["link_selector"]):
+        if node.tag != "a" or node.mem_id not in links:
             continue
         href = node.attributes.get("href")
         if not href:

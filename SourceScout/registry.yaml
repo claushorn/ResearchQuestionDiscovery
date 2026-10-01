@@ -530,3 +530,86 @@ sources:
   url: https://atscaleconference.com/feed/
   params:
     max_items: 20
+- id: talk-kdd25-ads
+  name: KDD 2025 applied data science papers (abstracts and affiliations via OpenAlex)
+  category: industry_talk
+  kind: doi_list
+  url: https://kdd2025.kdd.org/applied-data-science-ads-track-papers-2/
+  params:
+    max_items: 200
+- id: talk-pyconde-pydata-2026
+  name: PyCon DE & PyData 2026 talks (Darmstadt)
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/pyconde-pydata-2026/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-pyconde-pydata-2025
+  name: PyCon DE & PyData 2025 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/pyconde-pydata-2025/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-bbuzz-2026
+  name: Berlin Buzzwords 2026 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/bbuzz26/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-bbuzz-2025
+  name: Berlin Buzzwords 2025 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/bbuzz25/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-europython-2026
+  name: EuroPython 2026 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://programme.europython.eu/europython-2026/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-europython-2025
+  name: EuroPython 2025 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/europython-2025/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-pydata-global-2025
+  name: PyData Global 2025 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://cfp.pydata.org/pydataglobal2025/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-pydata-eindhoven-2025
+  name: PyData Eindhoven 2025 talks
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/pydata-eindhoven-2025/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-pycones-2026
+  name: PyConES 2026 talks (Spain)
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/pycones-2026/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-pycones-2025
+  name: PyConES 2025 talks (Spain)
+  category: industry_talk
+  kind: json_sessions
+  url: https://pretalx.com/pycones-2025/schedule/export/schedule.json
+  params: *pretalx
+- id: talk-m3-2026
+  name: M3 Minds Mastering Machines 2026 talks (Germany)
+  category: industry_talk
+  kind: html_list
+  url: https://m3-konferenz.de/programm.php
+  params:
+    link_selector: div.slot .title a
+    max_items: 60
+- id: talk-t3chfest-2026
+  name: T3chFest 2026 talks (Madrid)
+  category: industry_talk
+  kind: html_list
+  url: https://t3chfest.es/2026/programa
+  params:
+    link_selector: a.event.type-talk
+    max_items: 80

@@ -12,7 +12,7 @@ from urllib.parse import quote, urljoin
 
 from selectolax.parser import HTMLParser
 
-from sourcescout.adapters.base import IsKnown, RawItem
+from sourcescout.adapters.base import IsKnown, RawItem, item_failed
 from rqd.errors import SourceFetchError
 from rqd.http import Fetcher, html_to_text
 from sourcescout.registry import Source
@@ -101,5 +101,46 @@ def fetch_html_sections(source: Source, http: Fetcher, is_known: IsKnown,
         text, links = html_to_text(node.html, str(resp.url))
         items.append(RawItem(source.id, url, title, None, text, tuple(links)))
         if len(items) >= int(p.get("max_items", 30)):
+            break
+    return items
+
+
+_DOI = re.compile(r"\b10\.\d{4,9}/[^\s\"'<>]+")
+OPENALEX = "https://api.openalex.org/works/doi:"  # open scholarly metadata (publisher pages such as ACM block scripts)
+
+
+def _abstract(inverted: dict | None) -> str:
+    """OpenAlex stores abstracts as {word: [positions]}."""
+    if not inverted:
+        return ""
+    words = sorted((pos, word) for word, positions in inverted.items() for pos in positions)
+    return " ".join(word for _, word in words)
+
+
+def fetch_doi_list(source: Source, http: Fetcher, is_known: IsKnown,
+                   item_errors: list[str] | None = None) -> list[RawItem]:
+    """An accepted-papers page that lists DOIs (e.g. KDD's applied data science track): one item per paper with
+    title, abstract and author institutions from OpenAlex."""
+    text = html_to_text(http.get(source.url).text, source.url)[0]
+    dois = list(dict.fromkeys(d.rstrip(".,;)") for d in _DOI.findall(text)))
+    if not dois:
+        raise SourceFetchError(f"{source.url}: no DOIs on the page (layout changed?)")
+    items = []
+    for doi in dois:
+        url = f"https://doi.org/{doi}"
+        if is_known(url):
+            continue
+        try:
+            work = http.get(OPENALEX + doi).json()
+        except (SourceFetchError, ValueError) as e:
+            item_failed(item_errors, url, e if isinstance(e, SourceFetchError) else SourceFetchError(f"{doi}: {e}"))
+            continue
+        authors = "; ".join(f"{a['author']['display_name']} ({', '.join(i['display_name'] for i in a.get('institutions') or [])})"
+                            for a in work.get("authorships") or [])
+        abstract = _abstract(work.get("abstract_inverted_index"))
+        body = f"Abstract: {abstract}" if abstract else "(no abstract in OpenAlex)"
+        items.append(RawItem(source.id, url, work.get("title") or doi, work.get("publication_date"),
+                             f"{body}\nAuthors: {authors}"))
+        if len(items) >= int(source.params.get("max_items", 30)):
             break
     return items

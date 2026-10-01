@@ -46,7 +46,10 @@ Industry talks, one item per talk: `json_sessions` (`items_path` — dotted path
 mapping value; `title_field`, `text_fields`, optional `embedded` — CSS selector of a `<script>` holding the JSON, e.g.
 `script#__NEXT_DATA__`; `url_field` (relative paths resolve against the listing), `id_field`, `date_field`,
 `max_items`) for pretalx schedule exports, sessions.json feeds and Next.js agendas; `html_sections`
-(`section_selector` wrapping one talk, `title_selector`, `max_items`) for one static page listing many talks.
+(`section_selector` wrapping one talk, `title_selector`, `max_items`) for one static page listing many talks;
+`doi_list` (`max_items`) for accepted-paper pages listing DOIs (e.g. KDD): one item per paper with title, abstract
+and author institutions from OpenAlex (publisher pages such as ACM block scripts). Talks with a detail page per talk
+(M3, T3chFest) use `html_list`, whose `link_selector` may use descendant selectors.
 Talks are category `industry_talk`; their payment signal is `company_investment` (stated = the company), and only
 limitations / open challenges the talk itself states make a candidate. Extract them with
 `uv run problemextractor run --category industry_talk`.

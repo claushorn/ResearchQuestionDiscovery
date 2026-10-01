@@ -11,6 +11,7 @@ KINDS: dict[str, Kind] = {
     "page": Kind(webpage.fetch_page),
     "json_sessions": Kind(talks.fetch_json_sessions, ("items_path", "title_field", "text_fields")),
     "html_sections": Kind(talks.fetch_html_sections, ("section_selector",)),
+    "doi_list": Kind(talks.fetch_doi_list),
 }
 REQUIRED_PARAMS: dict[str, tuple[str, ...]] = {k: v.required_params for k, v in KINDS.items()}
 
